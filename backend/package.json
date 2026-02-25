@@ -11,6 +11,7 @@
     "dev": "node server.js",
     "init-db:sqlite": "node scripts/init-db-sqlite.js",
     "init-db:postgres": "node scripts/init-db-postgres.js",
+    "init-uhpcms:postgres": "node scripts/init-uhpcms-postgres.js",
     "seed-uhpcms": "node scripts/seed-uhpcms.js"
   },
   "engines": { "node": ">=16" },

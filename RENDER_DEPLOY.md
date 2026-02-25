@@ -29,12 +29,14 @@ This guide walks you through deploying the Hospital Management System (backend A
      export DATABASE_URL="postgres://..."   # paste your database URL
      node scripts/init-db-postgres.js
      ```
-   - This creates the legacy HMS tables and seed data. For U-HPCMS features (organizations, encounters, etc.) the app currently uses SQLite locally; Postgres seed for U-HPCMS can be added later.
+   - This creates the legacy HMS tables, U-HPCMS tables (`system_users`, `roles`, `organizations`, `audit_log`, etc.), and seeds a **super-admin** user so email/password login works.
+   - **If you already ran the init earlier and get “relation \"system_users\" does not exist”:** run only the U-HPCMS part so you don’t overwrite legacy data: `npm run init-uhpcms:postgres` (or `node scripts/init-uhpcms-postgres.js`) with `DATABASE_URL` set. This creates the U-HPCMS tables and the super-admin user.
 
 4. **Open the app**
    - Frontend: `https://hms-liberia.onrender.com` (or the URL Render shows).
    - Backend health: `https://hms-liberia-api.onrender.com/api/health`.
-   - Log in with the legacy seed user (e.g. Administrator / root123 / root1234 from `seed-postgres.sql`) or the credentials you added.
+   - **U-HPCMS (super-admin):** Switch to “U-HPCMS” on the login page → Email: `super@uhpcms.local`, Password: `admin123`.
+   - **Legacy HMS:** Role: Administrator, Username: `root123`, Password: `root1234` (or other seeded users from `seed-postgres.sql`).
 
 ---
 
@@ -90,7 +92,7 @@ If users cannot log in after deployment:
    - Redeploy the backend after changing **CORS_ORIGIN**.
 
 3. **Database**
-   - Ensure the Postgres DB is initialized (see “Initialize the database” above). Login uses the `login` table; if it’s empty, no credentials will work.
+   - Ensure the Postgres DB is initialized (see “Initialize the database” above). **Legacy login** uses the `login` table; **U-HPCMS/super-admin login** uses the `system_users` table. If you see “relation \"system_users\" does not exist”, run `node scripts/init-db-postgres.js` once with `DATABASE_URL` set so U-HPCMS tables and the super-admin user are created.
 
 4. **Browser**
    - Open DevTools → Network and try logging in. If the request to `/api/auth/login` goes to the frontend origin (e.g. `https://hms-liberia.onrender.com`) instead of the API, **VITE_API_URL** was not set at build time—set it and redeploy the frontend.
@@ -101,4 +103,4 @@ If users cannot log in after deployment:
 
 - **Free tier:** Backend and DB may spin down after inactivity; first request can be slow.
 - **SQLite:** If you don’t attach a Postgres DB, the backend uses SQLite. On Render the filesystem is ephemeral, so data is lost on redeploy. Use Postgres for production.
-- **U-HPCMS:** Full U-HPCMS (organizations, encounters, billing) uses extra tables that are seeded via `npm run seed-uhpcms` with SQLite. For Postgres-only production, run the legacy init first; U-HPCMS Postgres support can be added later.
+- **U-HPCMS:** The same init script (`node scripts/init-db-postgres.js`) creates U-HPCMS tables (`system_users`, `roles`, `organizations`, `audit_log`, etc.) and seeds the super-admin (`super@uhpcms.local` / `admin123`). Use the “U-HPCMS” tab on the login page for super-admin.

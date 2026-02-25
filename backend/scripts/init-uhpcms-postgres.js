@@ -1,14 +1,15 @@
+/**
+ * Add U-HPCMS tables and super-admin to an existing Postgres DB (e.g. already has legacy tables).
+ * Safe to run multiple times. Does not touch legacy tables.
+ * Usage: DATABASE_URL="postgres://..." node scripts/init-uhpcms-postgres.js
+ */
 const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 const config = require('../config');
 
-const schemaPath = path.join(__dirname, '..', 'database', 'schema-postgres.sql');
-const seedPath = path.join(__dirname, '..', 'database', 'seed-postgres.sql');
 const schemaUhpcmsPath = path.join(__dirname, '..', 'database', 'schema-uhpcms-postgres.sql');
-const schema = fs.readFileSync(schemaPath, 'utf8');
-const seed = fs.readFileSync(seedPath, 'utf8');
 const schemaUhpcms = fs.readFileSync(schemaUhpcmsPath, 'utf8');
 
 async function init() {
@@ -23,11 +24,8 @@ async function init() {
       };
   const client = new Client(clientConfig);
   await client.connect();
-  await client.query(schema);
-  await client.query(seed);
   await client.query(schemaUhpcms);
 
-  // Seed U-HPCMS super-admin so email/password login works (system_users)
   const superRoleId = 'role_super_admin';
   await client.query(
     `INSERT INTO roles (id, name, org_id) VALUES ($1, $2, NULL) ON CONFLICT (id) DO NOTHING`,
@@ -43,7 +41,7 @@ async function init() {
   );
 
   await client.end();
-  console.log('PostgreSQL database initialized (legacy + U-HPCMS). Super-admin: super@uhpcms.local / admin123');
+  console.log('U-HPCMS tables and super-admin ready. Login: super@uhpcms.local / admin123');
 }
 
 init().catch((err) => {
