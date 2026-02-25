@@ -1,6 +1,5 @@
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import CurrencySwitcher from './components/CurrencySwitcher';
 import { api } from './api';
 import { getSelectedOrgId, setSelectedOrgId } from './utils/org';
 
@@ -161,7 +160,6 @@ export default function Layout({ user, onLogout, children }) {
       <main className="main-content">
         <header className="main-header">
           <h1>{hasToken ? 'Unified Hospital, Clinic & Pharmacy Management' : 'Hospital Management System'}</h1>
-          <CurrencySwitcher />
         </header>
         <div className="main-body">{children}</div>
       </main>

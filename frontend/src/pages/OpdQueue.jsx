@@ -232,7 +232,7 @@ export default function OpdQueue({ user, onLogout }) {
                       <li><span className="detail-label">Diagnosis</span><span className="detail-value">{viewDetails.diagnosis || '—'}</span></li>
                       <li><span className="detail-label">Medicines</span><span className="detail-value">{viewDetails.medicinesDose || '—'}</span></li>
                       <li><span className="detail-label">Follow-up</span><span className="detail-value">{viewDetails.followupDate || '—'}</span></li>
-                      <li><span className="detail-label">Fees</span><span className="detail-value">{viewDetails.fees ?? '—'}</span></li>
+                      <li><span className="detail-label">Fees (USD)</span><span className="detail-value">{viewDetails.fees != null && viewDetails.fees !== '' && !Number.isNaN(Number(viewDetails.fees)) ? `USD ${Number(viewDetails.fees).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : (viewDetails.fees ?? '—')}</span></li>
                     </>
                   )}
                 </ul>
@@ -286,8 +286,8 @@ export default function OpdQueue({ user, onLogout }) {
                       <input type="text" className="form-input" value={editForm.followupDate} onChange={(e) => setEditForm((f) => ({ ...f, followupDate: e.target.value }))} placeholder="YYYY-MM-DD" />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Fees</label>
-                      <input type="text" className="form-input" value={editForm.fees} onChange={(e) => setEditForm((f) => ({ ...f, fees: e.target.value }))} />
+                      <label className="form-label">Fees (USD)</label>
+                      <input type="text" className="form-input" value={editForm.fees} onChange={(e) => setEditForm((f) => ({ ...f, fees: e.target.value }))} placeholder="e.g. 50.00" />
                     </div>
                   </div>
                   <div className="form-actions">

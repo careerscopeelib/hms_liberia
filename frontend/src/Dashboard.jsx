@@ -233,7 +233,7 @@ export default function Dashboard({ user, onLogout }) {
               </div>
               <div className="stat-card">
                 <div className="stat-card-label">OPD income</div>
-                <div className="stat-card-value">₹{stats.total_opd_income || 0}</div>
+                <div className="stat-card-value">{formatMoney(stats.total_opd_income || 0, 'USD')}</div>
               </div>
             </div>
           </>

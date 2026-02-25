@@ -314,7 +314,7 @@ export default function PatientFlowPage({ user, onLogout }) {
               </form>
               <p style={{ marginTop: '1rem' }}>
                 <button type="button" className="btn-primary" onClick={goToBilling}>Go to Billing</button>
-                {' '}for this encounter (USD / LRD).
+                {' '}for this encounter (USD only).
               </p>
               <hr style={{ borderColor: 'var(--color-border)', margin: '1rem 0' }} />
               <h4 style={{ marginTop: 0 }}>Close encounter</h4>
@@ -342,7 +342,7 @@ export default function PatientFlowPage({ user, onLogout }) {
         {step === 'billing' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Billing</h3>
-            <p>Add charges, create invoices, and record payments (USD / LRD).</p>
+            <p>Add charges, create invoices, and record payments (USD only).</p>
             <button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={goToBilling}>{encounterId ? `Open Billing for ${encounterId}` : 'Open Billing'}</button>
           </div>
         )}

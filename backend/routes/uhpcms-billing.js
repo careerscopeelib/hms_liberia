@@ -26,15 +26,14 @@ router.get('/charges', async (req, res) => {
   }
 });
 
-// POST /api/uhpcms/billing/charges - add charge (USD or LRD)
+// POST /api/uhpcms/billing/charges - add charge (USD only for OPD invoices)
 router.post('/charges', async (req, res) => {
   try {
     const { encounter_id, service_code, description, amount, currency, quantity } = req.body || {};
     if (!encounter_id || !service_code || amount == null) {
       return res.status(400).json({ ok: false, message: 'encounter_id, service_code, amount required' });
     }
-    const curr = (currency || 'USD').toUpperCase();
-    if (curr !== 'USD' && curr !== 'LRD') return res.status(400).json({ ok: false, message: 'currency must be USD or LRD' });
+    const curr = 'USD';
     const id = 'ch_' + crypto.randomBytes(8).toString('hex');
     await db.run(
       'INSERT INTO billing_charges (id, encounter_id, service_code, description, amount, currency, quantity) VALUES ($1, $2, $3, $4, $5, $6, $7)',
@@ -61,13 +60,12 @@ router.get('/invoices', async (req, res) => {
   }
 });
 
-// POST /api/uhpcms/billing/invoices - create invoice from charges (USD or LRD)
+// POST /api/uhpcms/billing/invoices - create invoice from charges (USD only for OPD)
 router.post('/invoices', async (req, res) => {
   try {
-    const { encounter_id, currency } = req.body || {};
+    const { encounter_id } = req.body || {};
     if (!encounter_id) return res.status(400).json({ ok: false, message: 'encounter_id required' });
-    const curr = (currency || 'USD').toUpperCase();
-    if (curr !== 'USD' && curr !== 'LRD') return res.status(400).json({ ok: false, message: 'currency must be USD or LRD' });
+    const curr = 'USD';
     const charges = await db.query(
       'SELECT amount, quantity FROM billing_charges WHERE encounter_id = $1',
       [encounter_id]
@@ -84,13 +82,12 @@ router.post('/invoices', async (req, res) => {
   }
 });
 
-// POST /api/uhpcms/billing/payments - record payment (USD or LRD)
+// POST /api/uhpcms/billing/payments - record payment (USD only for OPD invoices)
 router.post('/payments', async (req, res) => {
   try {
-    const { invoice_id, amount, currency, method, reference } = req.body || {};
+    const { invoice_id, amount, method, reference } = req.body || {};
     if (!invoice_id || amount == null) return res.status(400).json({ ok: false, message: 'invoice_id and amount required' });
-    const curr = (currency || 'USD').toUpperCase();
-    if (curr !== 'USD' && curr !== 'LRD') return res.status(400).json({ ok: false, message: 'currency must be USD or LRD' });
+    const curr = 'USD';
     const id = 'pay_' + crypto.randomBytes(8).toString('hex');
     await db.run(
       'INSERT INTO payments (id, invoice_id, amount, currency, method, reference) VALUES ($1, $2, $3, $4, $5, $6)',

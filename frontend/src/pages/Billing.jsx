@@ -8,7 +8,7 @@ import { getEffectiveOrgId } from '../utils/org';
 export default function Billing({ user, onLogout }) {
   const [searchParams] = useSearchParams();
   const encounterIdFromUrl = searchParams.get('encounter_id');
-  const { formatMoney, currency } = useCurrency();
+  const { formatMoney } = useCurrency();
   const [encounters, setEncounters] = useState([]);
   const [selectedEnc, setSelectedEnc] = useState(encounterIdFromUrl || null);
   const [charges, setCharges] = useState([]);
@@ -67,7 +67,7 @@ export default function Billing({ user, onLogout }) {
     if (!selectedEnc) return;
     setError('');
     try {
-      await api.uhpcms.createInvoice({ encounter_id: selectedEnc, currency: currency });
+      await api.uhpcms.createInvoice({ encounter_id: selectedEnc, currency: 'USD' });
       const r = await api.uhpcms.getInvoices(selectedEnc);
       setInvoices(r.data || []);
     } catch (e) {
@@ -98,7 +98,7 @@ export default function Billing({ user, onLogout }) {
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Billing & Financial Workflow</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-          Create charges in USD or LRD, generate invoices, and record payments.
+          Create charges and invoices in USD. Generate invoices and record payments.
         </p>
 
         <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
@@ -122,28 +122,23 @@ export default function Billing({ user, onLogout }) {
         {selectedEnc && (
           <>
             <section className="section">
-              <h3 className="section-title">Charges (USD / LRD)</h3>
+              <h3 className="section-title">Charges (USD)</h3>
               <form onSubmit={handleAddCharge} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                 <input placeholder="Service code" value={newCharge.service_code} onChange={(e) => setNewCharge((s) => ({ ...s, service_code: e.target.value }))} style={{ padding: '0.5rem', width: 120 }} />
                 <input placeholder="Description" value={newCharge.description} onChange={(e) => setNewCharge((s) => ({ ...s, description: e.target.value }))} style={{ padding: '0.5rem', flex: 1, minWidth: 140 }} />
-                <input type="number" step="0.01" placeholder="Amount" value={newCharge.amount} onChange={(e) => setNewCharge((s) => ({ ...s, amount: e.target.value }))} style={{ padding: '0.5rem', width: 100 }} />
-                <select value={newCharge.currency} onChange={(e) => setNewCharge((s) => ({ ...s, currency: e.target.value }))} style={{ padding: '0.5rem' }}>
-                  <option value="USD">USD</option>
-                  <option value="LRD">LRD</option>
-                </select>
+                <input type="number" step="0.01" placeholder="Amount (USD)" value={newCharge.amount} onChange={(e) => setNewCharge((s) => ({ ...s, amount: e.target.value }))} style={{ padding: '0.5rem', width: 100 }} />
                 <button type="submit" className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Add charge</button>
               </form>
               <div className="card">
                 <div className="table-wrap">
                   <table className="table">
-                    <thead><tr><th>Code</th><th>Description</th><th>Amount</th><th>Currency</th></tr></thead>
+                    <thead><tr><th>Code</th><th>Description</th><th>Amount (USD)</th></tr></thead>
                     <tbody>
                       {charges.map((c) => (
                         <tr key={c.id}>
                           <td>{c.service_code}</td>
                           <td>{c.description || '—'}</td>
-                          <td className={c.currency === 'LRD' ? 'money-lrd' : 'money-usd'}>{formatMoney(c.amount, c.currency)}</td>
-                          <td>{c.currency}</td>
+                          <td className="money-usd">{formatMoney(c.amount, 'USD')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -155,13 +150,13 @@ export default function Billing({ user, onLogout }) {
             <section className="section">
               <h3 className="section-title">Invoices & payments</h3>
               <button type="button" className="btn-primary" style={{ marginBottom: '1rem' }} onClick={handleCreateInvoice}>
-                Create invoice ({currency})
+                Create invoice (USD)
               </button>
               <div className="card">
                 <ul className="opd-list">
                   {invoices.map((inv) => (
                     <li key={inv.id}>
-                      <strong>{inv.id}</strong> — {formatMoney(inv.total_amount, inv.currency)} — {inv.status}
+                      <strong>{inv.id}</strong> — {formatMoney(inv.total_amount, 'USD')} — {inv.status}
                     </li>
                   ))}
                 </ul>
@@ -170,14 +165,10 @@ export default function Billing({ user, onLogout }) {
                 <select value={newPayment.invoice_id} onChange={(e) => setNewPayment((s) => ({ ...s, invoice_id: e.target.value }))} style={{ padding: '0.5rem', minWidth: 200 }} required>
                   <option value="">Select invoice</option>
                   {invoices.filter((i) => i.status !== 'paid').map((i) => (
-                    <option key={i.id} value={i.id}>{i.id} — {formatMoney(i.total_amount, i.currency)}</option>
+                    <option key={i.id} value={i.id}>{i.id} — {formatMoney(i.total_amount, 'USD')}</option>
                   ))}
                 </select>
-                <input type="number" step="0.01" placeholder="Amount" value={newPayment.amount} onChange={(e) => setNewPayment((s) => ({ ...s, amount: e.target.value }))} style={{ padding: '0.5rem', width: 100 }} required />
-                <select value={newPayment.currency} onChange={(e) => setNewPayment((s) => ({ ...s, currency: e.target.value }))} style={{ padding: '0.5rem' }}>
-                  <option value="USD">USD</option>
-                  <option value="LRD">LRD</option>
-                </select>
+                <input type="number" step="0.01" placeholder="Amount (USD)" value={newPayment.amount} onChange={(e) => setNewPayment((s) => ({ ...s, amount: e.target.value }))} style={{ padding: '0.5rem', width: 100 }} required />
                 <button type="submit" className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Record payment</button>
               </form>
             </section>
