@@ -1,13 +1,17 @@
 const { Pool } = require('pg');
 const config = require('../config');
 
-const pool = new Pool({
-  host: config.postgres.host,
-  port: config.postgres.port,
-  database: config.postgres.database,
-  user: config.postgres.user,
-  password: config.postgres.password,
-});
+const poolConfig = config.postgres.connectionString
+  ? { connectionString: config.postgres.connectionString, ssl: config.postgres.ssl }
+  : {
+      host: config.postgres.host,
+      port: config.postgres.port,
+      database: config.postgres.database,
+      user: config.postgres.user,
+      password: config.postgres.password,
+    };
+
+const pool = new Pool(poolConfig);
 
 async function query(sql, params = []) {
   const { rows } = await pool.query(sql, params);

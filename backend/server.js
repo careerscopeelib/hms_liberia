@@ -34,7 +34,7 @@ const uhpcmsReporting = require('./routes/uhpcms-reporting');
 const uhpcmsAudit = require('./routes/uhpcms-audit');
 
 const app = express();
-app.use(cors());
+app.use(cors(config.corsOrigin === true ? {} : { origin: config.corsOrigin }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

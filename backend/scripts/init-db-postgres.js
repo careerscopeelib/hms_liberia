@@ -9,13 +9,16 @@ const schema = fs.readFileSync(schemaPath, 'utf8');
 const seed = fs.readFileSync(seedPath, 'utf8');
 
 async function init() {
-  const client = new Client({
-    host: config.postgres.host,
-    port: config.postgres.port,
-    database: config.postgres.database,
-    user: config.postgres.user,
-    password: config.postgres.password,
-  });
+  const clientConfig = config.postgres.connectionString
+    ? { connectionString: config.postgres.connectionString, ssl: config.postgres.ssl }
+    : {
+        host: config.postgres.host,
+        port: config.postgres.port,
+        database: config.postgres.database,
+        user: config.postgres.user,
+        password: config.postgres.password,
+      };
+  const client = new Client(clientConfig);
   await client.connect();
   await client.query(schema);
   await client.query(seed);
