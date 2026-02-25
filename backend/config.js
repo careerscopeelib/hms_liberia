@@ -1,7 +1,16 @@
 require('dotenv').config();
 
-// Support Render's DATABASE_URL (PostgreSQL)
-const databaseUrl = process.env.DATABASE_URL;
+// Support Render's DATABASE_URL (PostgreSQL) or build from PG_* vars
+const databaseUrl = process.env.DATABASE_URL || (function () {
+  const h = process.env.PG_HOST;
+  const db = process.env.PG_DATABASE;
+  const u = process.env.PG_USER;
+  const p = process.env.PG_PASSWORD;
+  if (!h || !db || !u) return null;
+  const port = process.env.PG_PORT || '5432';
+  const enc = encodeURIComponent;
+  return `postgres://${enc(u)}:${enc(p || '')}@${h}:${port}/${enc(db)}`;
+})();
 const usePostgres = databaseUrl || (process.env.DB_TYPE || 'sqlite').toLowerCase() === 'postgres';
 
 // Allow frontend origin(s) for CORS. Comma-separated list, or true to allow all.
@@ -27,7 +36,12 @@ const config = {
     path: process.env.SQLITE_PATH || './data/hospital.db',
   },
   postgres: databaseUrl
-    ? { connectionString: databaseUrl, ssl: databaseUrl.includes('render.com') ? { rejectUnauthorized: false } : undefined }
+    ? {
+        connectionString: databaseUrl,
+        ssl: (databaseUrl.includes('render.com') || /^dpg-/.test(process.env.PG_HOST || ''))
+          ? { rejectUnauthorized: false }
+          : undefined,
+      }
     : {
         host: process.env.PG_HOST || 'localhost',
         port: parseInt(process.env.PG_PORT || '5432', 10),

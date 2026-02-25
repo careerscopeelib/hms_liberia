@@ -43,7 +43,7 @@ router.post('/organizations', requireRole('super_admin'), async (req, res) => {
     );
     const roleOrgAdminId = 'role_org_admin_' + id;
     await db.run(
-      'INSERT OR IGNORE INTO roles (id, name, org_id) VALUES ($1, $2, $3)',
+      'INSERT INTO roles (id, name, org_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
       [roleOrgAdminId, 'org_admin', id]
     );
     const defaultRoles = [
@@ -53,11 +53,11 @@ router.post('/organizations', requireRole('super_admin'), async (req, res) => {
       ['role_pharmacist_' + id, 'pharmacist', id],
     ];
     for (const [rid, name, orgId] of defaultRoles) {
-      await db.run('INSERT OR IGNORE INTO roles (id, name, org_id) VALUES ($1, $2, $3)', [rid, name, orgId]);
+      await db.run('INSERT INTO roles (id, name, org_id) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING', [rid, name, orgId]);
     }
     for (const mod of MODULES) {
       await db.run(
-        'INSERT OR IGNORE INTO org_modules (org_id, module_name, enabled) VALUES ($1, $2, $3)',
+        'INSERT INTO org_modules (org_id, module_name, enabled) VALUES ($1, $2, $3) ON CONFLICT (org_id, module_name) DO NOTHING',
         [id, mod, mod === type || mod === 'billing' ? 1 : 0]
       );
     }
