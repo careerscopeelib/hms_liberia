@@ -34,7 +34,13 @@ const uhpcmsReporting = require('./routes/uhpcms-reporting');
 const uhpcmsAudit = require('./routes/uhpcms-audit');
 
 const app = express();
-app.use(cors(config.corsOrigin === true ? {} : { origin: config.corsOrigin }));
+// CORS: allow single origin (string), array of origins, or true for all
+const corsOpts = config.corsOrigin === true
+  ? {}
+  : Array.isArray(config.corsOrigin)
+    ? { origin: config.corsOrigin }
+    : { origin: config.corsOrigin };
+app.use(cors(corsOpts));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

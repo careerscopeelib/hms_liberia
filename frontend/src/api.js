@@ -1,4 +1,15 @@
-const BASE = import.meta.env.VITE_API_URL ?? '';
+// API base URL: from build env, or runtime fallback for Render (frontend at x.onrender.com → api at x-api.onrender.com)
+function getApiBase() {
+  const fromEnv = import.meta.env.VITE_API_URL;
+  if (fromEnv && typeof fromEnv === 'string') return fromEnv.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const { hostname, protocol } = window.location;
+    if (hostname.endsWith('.onrender.com'))
+      return `${protocol}//${hostname.replace('.onrender.com', '-api.onrender.com')}`;
+  }
+  return '';
+}
+const BASE = getApiBase();
 
 function getToken() {
   return sessionStorage.getItem('uhpcms_token') || sessionStorage.getItem('hms_user') ? null : null;

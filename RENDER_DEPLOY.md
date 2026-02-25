@@ -77,6 +77,26 @@ This guide walks you through deploying the Hospital Management System (backend A
 
 ---
 
+## Troubleshooting: Login not working
+
+If users cannot log in after deployment:
+
+1. **API URL**
+   - **Frontend:** Set **VITE_API_URL** to the backend URL (e.g. `https://hms-liberia-api.onrender.com`) in the frontend service Environment, then **redeploy** the frontend so the build picks it up.
+   - If you use the default Render naming (`hms-liberia` for frontend, `hms-liberia-api` for backend), the app will try to guess the API URL at runtime when `VITE_API_URL` is missing (e.g. `hms-liberia.onrender.com` → `hms-liberia-api.onrender.com`). For reliability, set **VITE_API_URL** and redeploy.
+
+2. **CORS**
+   - **Backend:** Set **CORS_ORIGIN** to the exact frontend URL (e.g. `https://hms-liberia.onrender.com`) with no trailing slash. You can set multiple origins as a comma-separated list.
+   - Redeploy the backend after changing **CORS_ORIGIN**.
+
+3. **Database**
+   - Ensure the Postgres DB is initialized (see “Initialize the database” above). Login uses the `login` table; if it’s empty, no credentials will work.
+
+4. **Browser**
+   - Open DevTools → Network and try logging in. If the request to `/api/auth/login` goes to the frontend origin (e.g. `https://hms-liberia.onrender.com`) instead of the API, **VITE_API_URL** was not set at build time—set it and redeploy the frontend.
+
+---
+
 ## Notes
 
 - **Free tier:** Backend and DB may spin down after inactivity; first request can be slow.
