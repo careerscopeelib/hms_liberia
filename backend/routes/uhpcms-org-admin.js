@@ -22,22 +22,30 @@ const DEFAULT_ORG_ROLES = [
   ['org_admin', (id) => `role_org_admin_${id}`],
   ['doctor', (id) => `role_doctor_${id}`],
   ['nurse', (id) => `role_nurse_${id}`],
+  ['accountant', (id) => `role_accountant_${id}`],
   ['receptionist', (id) => `role_receptionist_${id}`],
   ['pharmacist', (id) => `role_pharmacist_${id}`],
+  ['representative', (id) => `role_representative_${id}`],
 ];
 
 router.get('/roles', async (req, res) => {
   try {
     const orgId = req.query.org_id || req.user?.org_id;
-    if (orgId) {
+    const normalizedOrgId = orgId && String(orgId).trim() ? orgId : null;
+    if (normalizedOrgId) {
       for (const [name, idFn] of DEFAULT_ORG_ROLES) {
-        const roleId = idFn(orgId);
+        const roleId = idFn(normalizedOrgId);
         const exists = await db.get('SELECT id FROM roles WHERE id = $1', [roleId]);
-        if (!exists) await db.run('INSERT INTO roles (id, name, org_id) VALUES ($1, $2, $3)', [roleId, name, orgId]);
+        if (!exists) {
+          await db.run('INSERT INTO roles (id, name, org_id) VALUES ($1, $2, $3)', [roleId, name, normalizedOrgId]);
+        }
       }
     }
-    let sql = 'SELECT id, name FROM roles WHERE org_id IS NULL OR org_id = $1 ORDER BY name';
-    const rows = await db.query(sql, [orgId || null]);
+    const sql = normalizedOrgId
+      ? 'SELECT id, name FROM roles WHERE org_id = $1 ORDER BY name'
+      : 'SELECT id, name FROM roles WHERE org_id IS NULL ORDER BY name';
+    const params = normalizedOrgId ? [normalizedOrgId] : [];
+    const rows = await db.query(sql, params);
     res.json({ ok: true, data: rows });
   } catch (e) {
     res.status(500).json({ ok: false, message: e.message });

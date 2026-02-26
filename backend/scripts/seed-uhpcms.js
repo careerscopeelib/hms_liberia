@@ -34,13 +34,42 @@ async function seed() {
     [roleId, 'org_admin', orgId]
   );
 
+  const hash = await bcrypt.hash('admin123', 10);
+
+  const orgAdminId = 'u_orgadmin_demo';
+  await db.run(
+    'INSERT OR IGNORE INTO system_users (id, org_id, email, password_hash, role_id, full_name, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    [orgAdminId, orgId, 'orgadmin@demo.local', hash, roleId, 'Org Admin Demo', 'active']
+  );
+
+  const orgRoles = [
+    ['doctor', 'Doctor Demo'],
+    ['nurse', 'Nurse Demo'],
+    ['accountant', 'Accountant Demo'],
+    ['receptionist', 'Receptionist Demo'],
+    ['pharmacist', 'Pharmacist Demo'],
+    ['representative', 'Representative Demo'],
+  ];
+  for (const [roleName, fullName] of orgRoles) {
+    const rId = `role_${roleName}_${orgId}`;
+    await db.run(
+      'INSERT OR IGNORE INTO roles (id, name, org_id) VALUES ($1, $2, $3)',
+      [rId, roleName, orgId]
+    );
+    const email = `${roleName}@demo.local`;
+    const uid = `u_${roleName}_demo`;
+    await db.run(
+      'INSERT OR IGNORE INTO system_users (id, org_id, email, password_hash, role_id, full_name, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [uid, orgId, email, hash, rId, fullName, 'active']
+    );
+  }
+
   const superRoleId = 'role_super_admin';
   await db.run(
     'INSERT OR IGNORE INTO roles (id, name, org_id) VALUES ($1, $2, $3)',
     [superRoleId, 'super_admin', null]
   );
 
-  const hash = await bcrypt.hash('admin123', 10);
   const superId = 'su_1';
   await db.run(
     'INSERT OR IGNORE INTO system_users (id, org_id, email, password_hash, role_id, full_name, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
@@ -62,7 +91,10 @@ async function seed() {
     ['enc_demo1', orgId, 'MRN001', deptId, 'registered']
   );
 
-  console.log('U-HPCMS seed done. Super-admin: super@uhpcms.local / admin123');
+  console.log('U-HPCMS seed done.');
+  console.log('Super-admin: super@uhpcms.local / admin123');
+  console.log('Org admin: orgadmin@demo.local / admin123 (select org "Unified Demo Hospital")');
+  console.log('Portal logins (password admin123): doctor@demo.local, nurse@demo.local, accountant@demo.local, receptionist@demo.local, pharmacist@demo.local, representative@demo.local');
 }
 
 seed().catch((e) => {

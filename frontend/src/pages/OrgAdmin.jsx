@@ -33,7 +33,17 @@ export default function OrgAdmin({ user, onLogout }) {
 
   useEffect(() => {
     if (!user) return;
-    api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => []);
+    api.uhpcms.getOrganizations().then((r) => {
+      const list = r.data || [];
+      setOrganizations(list);
+      if ((user.role === 'super_admin' || user.role === 'role_super_admin') && !user.org_id) {
+        const current = orgId || getSelectedOrgId() || searchParams.get('org_id');
+        if (!current && list.length > 0) {
+          setOrgId(list[0].id);
+          setSelectedOrgId(list[0].id);
+        }
+      }
+    }).catch(() => []);
     if (user.org_id) setOrgId(user.org_id);
     const qOrg = searchParams.get('org_id');
     if (qOrg) {
@@ -238,7 +248,11 @@ export default function OrgAdmin({ user, onLogout }) {
                 <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} placeholder="Full name" style={{ padding: '0.5rem' }} />
                 <select value={form.role_id} onChange={(e) => setForm((f) => ({ ...f, role_id: e.target.value }))} style={{ padding: '0.5rem' }}>
                   <option value="">Role (optional — defaults to Org Admin)</option>
-                  {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name === 'accountant' ? 'Finance Manager (Accountant)' : (r.name || r.id).replace(/_/g, ' ')}
+                    </option>
+                  ))}
                 </select>
                 <select value={form.department_id} onChange={(e) => setForm((f) => ({ ...f, department_id: e.target.value }))} style={{ padding: '0.5rem' }}>
                   <option value="">Department (optional)</option>
@@ -246,7 +260,7 @@ export default function OrgAdmin({ user, onLogout }) {
                 </select>
                 <button type="submit" className="btn-primary" disabled={!currentOrgId || loading}>Create user</button>
               </form>
-              <div className="table-wrap"><table className="table"><thead><tr><th>Email</th><th>Full name</th><th>Role</th><th>Status</th></tr></thead><tbody>{users.map((u) => <tr key={u.id}><td>{u.email}</td><td>{u.full_name || '—'}</td><td>{roles.find((r) => r.id === u.role_id)?.name || u.role_id || '—'}</td><td>{u.status}</td></tr>)}</tbody></table></div>
+              <div className="table-wrap"><table className="table"><thead><tr><th>Email</th><th>Full name</th><th>Role</th><th>Status</th></tr></thead><tbody>{users.map((u) => <tr key={u.id}><td>{u.email}</td><td>{u.full_name || '—'}</td><td>{roles.find((r) => r.id === u.role_id)?.name === 'accountant' ? 'Finance Manager (Accountant)' : (roles.find((r) => r.id === u.role_id)?.name || u.role_id || '—').replace(/_/g, ' ')}</td><td>{u.status}</td></tr>)}</tbody></table></div>
             </div>
           </div>
         )}

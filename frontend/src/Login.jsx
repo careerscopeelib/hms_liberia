@@ -5,7 +5,13 @@ import { api } from './api';
 const ROLES = [
   { value: 'administrator', label: 'Administrator' },
   { value: 'doctor', label: 'Doctor' },
+  { value: 'nurse', label: 'Nurse' },
   { value: 'receptionist', label: 'Receptionist' },
+  { value: 'accountant', label: 'Accountant' },
+  { value: 'pharmacist', label: 'Pharmacist' },
+  { value: 'representative', label: 'Representative' },
+  { value: 'patient', label: 'Patient' },
+  { value: 'lab', label: 'Laboratory' },
 ];
 
 export default function Login({ onLogin }) {
@@ -28,7 +34,8 @@ export default function Login({ onLogin }) {
         if (res.ok && res.token && res.user) {
           sessionStorage.setItem('uhpcms_token', res.token);
           onLogin(res.user);
-          navigate('/dashboard', { replace: true });
+          const isAccountant = (res.user?.role || '').toLowerCase().includes('accountant');
+          navigate(isAccountant ? '/finance-dashboard' : '/dashboard', { replace: true });
           return;
         }
       } else {
@@ -36,13 +43,15 @@ export default function Login({ onLogin }) {
         if (res.ok && res.token && res.user) {
           sessionStorage.setItem('uhpcms_token', res.token);
           onLogin(res.user);
-          navigate('/dashboard', { replace: true });
+          const isAccountant = (res.user?.role || '').toLowerCase().includes('accountant');
+          navigate(isAccountant ? '/finance-dashboard' : '/dashboard', { replace: true });
           return;
         }
         const legacy = await api.login(role, username, password);
         if (legacy.ok) {
           onLogin({ id: legacy.id, role: legacy.role, username: legacy.username });
-          navigate('/dashboard', { replace: true });
+          const isAccountant = (legacy.role || '').toLowerCase().includes('accountant');
+          navigate(isAccountant ? '/finance-dashboard' : '/dashboard', { replace: true });
           return;
         }
       }
@@ -100,9 +109,13 @@ export default function Login({ onLogin }) {
           </button>
         </form>
         <p className="login-demo">
-          Legacy: Administrator — root123 / root1234<br />
-          U-HPCMS: super@uhpcms.local / admin123 (run backend seed-uhpcms first)
+          <strong>Demo logins</strong> (run backend seed scripts first). Use <strong>Email (U-HPCMS)</strong> for all below.
         </p>
+        <div className="login-demo-list" style={{ textAlign: 'left', marginTop: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+          <p style={{ margin: '0.25rem 0' }}><strong>Super Admin:</strong> super@uhpcms.local / admin123</p>
+          <p style={{ margin: '0.25rem 0' }}><strong>Org Admin:</strong> orgadmin@demo.local / admin123</p>
+          <p style={{ margin: '0.25rem 0' }}><strong>Portal:</strong> doctor@demo.local, nurse@demo.local, receptionist@demo.local, accountant@demo.local, pharmacist@demo.local, representative@demo.local — password: admin123</p>
+        </div>
       </div>
     </div>
   );

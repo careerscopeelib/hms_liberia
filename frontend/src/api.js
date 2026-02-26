@@ -12,7 +12,7 @@ function getApiBase() {
 const BASE = getApiBase();
 
 function getToken() {
-  return sessionStorage.getItem('uhpcms_token') || sessionStorage.getItem('hms_user') ? null : null;
+  return sessionStorage.getItem('uhpcms_token');
 }
 
 async function request(path, options = {}, useAuth = false) {
@@ -22,6 +22,12 @@ async function request(path, options = {}, useAuth = false) {
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && useAuth) {
+    sessionStorage.removeItem('uhpcms_token');
+    sessionStorage.removeItem('hms_user');
+    window.location.href = '/login';
+    throw new Error('Session expired. Please sign in again.');
+  }
   if (!res.ok) throw new Error(data.message || res.statusText);
   return data;
 }
@@ -83,10 +89,20 @@ export const api = {
       request('/api/uhpcms/billing/charges', { method: 'POST', body: JSON.stringify(body) }, true),
     getInvoices: (encounterId) =>
       request(`/api/uhpcms/billing/invoices?encounter_id=${encounterId}`, {}, true),
+    getInvoicesForOrg: (orgId) =>
+      request(`/api/uhpcms/billing/invoices?org_id=${orgId || ''}`, {}, true),
+    getPaymentsForOrg: (orgId) =>
+      request(`/api/uhpcms/billing/payments?org_id=${orgId || ''}`, {}, true),
     createInvoice: (body) =>
       request('/api/uhpcms/billing/invoices', { method: 'POST', body: JSON.stringify(body) }, true),
     addPayment: (body) =>
       request('/api/uhpcms/billing/payments', { method: 'POST', body: JSON.stringify(body) }, true),
+    getInvoice: (id) =>
+      request(`/api/uhpcms/billing/invoices/${id}`, {}, true),
+    getPayment: (id) =>
+      request(`/api/uhpcms/billing/payments/${id}`, {}, true),
+    generateInitialBill: (encounterId) =>
+      request(`/api/uhpcms/billing/encounters/${encounterId}/initial-bill`, { method: 'POST' }, true),
 
     getOrgAddons: (orgId) =>
       request(`/api/uhpcms/governance/organizations/${orgId}/addons`, {}, true),
@@ -181,6 +197,8 @@ export const api = {
       request(`/api/uhpcms/clinic/appointments/${id}/check-in`, { method: 'PATCH', body: JSON.stringify(body || {}) }, true),
     completeAppointment: (id) =>
       request(`/api/uhpcms/clinic/appointments/${id}/complete`, { method: 'PATCH' }, true),
+    cancelAppointment: (id) =>
+      request(`/api/uhpcms/clinic/appointments/${id}/cancel`, { method: 'PATCH' }, true),
 
     getReportingDashboard: (orgId) =>
       request(`/api/uhpcms/reporting/dashboard?org_id=${orgId || ''}`, {}, true),
@@ -191,5 +209,78 @@ export const api = {
 
     getAuditLog: (params) =>
       request(`/api/uhpcms/audit?${new URLSearchParams(params || {}).toString()}`, {}, true),
+
+    getNoticeboard: (params) =>
+      request(`/api/uhpcms/noticeboard?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    createNotice: (body) =>
+      request('/api/uhpcms/noticeboard', { method: 'POST', body: JSON.stringify(body) }, true),
+    updateNotice: (id, body) =>
+      request(`/api/uhpcms/noticeboard/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    deleteNotice: (id) =>
+      request(`/api/uhpcms/noticeboard/${id}`, { method: 'DELETE' }, true),
+
+    getCases: (params) =>
+      request(`/api/uhpcms/cases?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    createCase: (body) =>
+      request('/api/uhpcms/cases', { method: 'POST', body: JSON.stringify(body) }, true),
+    updateCase: (id, body) =>
+      request(`/api/uhpcms/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    deleteCase: (id) =>
+      request(`/api/uhpcms/cases/${id}`, { method: 'DELETE' }, true),
+
+    getActivities: (params) =>
+      request(`/api/uhpcms/activities?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    logActivity: (body) =>
+      request('/api/uhpcms/activities', { method: 'POST', body: JSON.stringify(body) }, true),
+
+    getSchedules: (params) =>
+      request(`/api/uhpcms/schedules?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    createSchedule: (body) =>
+      request('/api/uhpcms/schedules', { method: 'POST', body: JSON.stringify(body) }, true),
+    deleteSchedule: (id) =>
+      request(`/api/uhpcms/schedules/${id}`, { method: 'DELETE' }, true),
+
+    getBeds: (params) =>
+      request(`/api/uhpcms/beds?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    getBedAssignments: (params) =>
+      request(`/api/uhpcms/beds/assignments?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    createBed: (body) =>
+      request('/api/uhpcms/beds', { method: 'POST', body: JSON.stringify(body) }, true),
+    updateBed: (id, body) =>
+      request(`/api/uhpcms/beds/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    deleteBed: (id) =>
+      request(`/api/uhpcms/beds/${id}`, { method: 'DELETE' }, true),
+
+    getInsurancePolicies: (params) =>
+      request(`/api/uhpcms/insurance?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    createInsurancePolicy: (body) =>
+      request('/api/uhpcms/insurance', { method: 'POST', body: JSON.stringify(body) }, true),
+    updateInsurancePolicy: (id, body) =>
+      request(`/api/uhpcms/insurance/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    deleteInsurancePolicy: (id) =>
+      request(`/api/uhpcms/insurance/${id}`, { method: 'DELETE' }, true),
+
+    getChatRooms: (params) =>
+      request(`/api/uhpcms/chat/rooms?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    createChatRoom: (body) =>
+      request('/api/uhpcms/chat/rooms', { method: 'POST', body: JSON.stringify(body) }, true),
+    joinChatRoom: (roomId) =>
+      request(`/api/uhpcms/chat/rooms/${roomId}/join`, { method: 'POST' }, true),
+    getChatMessages: (roomId, params) =>
+      request(`/api/uhpcms/chat/rooms/${roomId}/messages?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    sendChatMessage: (roomId, body) =>
+      request(`/api/uhpcms/chat/rooms/${roomId}/messages`, { method: 'POST', body: JSON.stringify(body) }, true),
+
+    getDocuments: (params) =>
+      request(`/api/uhpcms/documents?${new URLSearchParams(params || {}).toString()}`, {}, true),
+    getDocument: (id) =>
+      request(`/api/uhpcms/documents/${id}`, {}, true),
+    uploadDocument: (body) =>
+      request('/api/uhpcms/documents', { method: 'POST', body: JSON.stringify(body) }, true),
+    deleteDocument: (id) =>
+      request(`/api/uhpcms/documents/${id}`, { method: 'DELETE' }, true),
+
+    globalSearch: (params) =>
+      request(`/api/uhpcms/search?${new URLSearchParams(params || {}).toString()}`, {}, true),
   },
 };

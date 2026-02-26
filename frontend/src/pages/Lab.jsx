@@ -77,13 +77,13 @@ export default function Lab({ user, onLogout }) {
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
-        <h2 className="section-title">Lab workflow</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Order tests, update status, submit results.</p>
+        <h2 className="section-title">Lab / Investigations</h2>
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Add investigation reports, manage orders, update status, submit results.</p>
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
-        <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
+        <div id="add-report" className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
           <div className="card-body">
-            <h3 style={{ marginTop: 0 }}>Create lab order</h3>
+            <h3 style={{ marginTop: 0 }}>Add Investigation Report</h3>
             <form onSubmit={handleCreateOrder} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}>
               <label>
                 Encounter
@@ -105,6 +105,7 @@ export default function Lab({ user, onLogout }) {
           </div>
         </div>
 
+        <h3 className="section-title" style={{ fontSize: '1rem' }}>Manage Investigation Report</h3>
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <label>
             Status

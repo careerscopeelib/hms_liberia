@@ -1,16 +1,28 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId, getSelectedOrgId, setSelectedOrgId } from '../utils/org';
 
 export default function Patients({ user, onLogout }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryQ = searchParams.get('q') || '';
   const [organizations, setOrganizations] = useState([]);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const currentOrgId = getEffectiveOrgId(user);
+
+  const filteredPatients = queryQ.trim()
+    ? patients.filter((p) => {
+        const q = queryQ.toLowerCase();
+        return (p.mrn && p.mrn.toLowerCase().includes(q)) ||
+          (p.full_name && p.full_name.toLowerCase().includes(q)) ||
+          (p.phone && p.phone.includes(q)) ||
+          (p.pid && String(p.pid).toLowerCase().includes(q));
+      })
+    : patients;
 
   useEffect(() => {
     api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => []);
@@ -18,11 +30,16 @@ export default function Patients({ user, onLogout }) {
 
   useEffect(() => {
     if (!currentOrgId) { setLoading(false); return; }
-    setLoading(true);
-    api.uhpcms.getPatients({ org_id: currentOrgId })
-      .then((r) => setPatients(r.data || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    const fetchPatients = () => {
+      setLoading(true);
+      api.uhpcms.getPatients({ org_id: currentOrgId })
+        .then((r) => setPatients(r.data || []))
+        .catch((e) => setError(e.message))
+        .finally(() => setLoading(false));
+    };
+    fetchPatients();
+    const interval = setInterval(fetchPatients, 60000);
+    return () => clearInterval(interval);
   }, [currentOrgId]);
 
   const handleDelete = async (id, mrn) => {
@@ -43,6 +60,11 @@ export default function Patients({ user, onLogout }) {
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
           View, edit, delete, or transfer patients. Open a patient to see full medical records, labs, diagnosis, and transfer history.
         </p>
+        {queryQ && (
+          <p style={{ marginBottom: '1rem', color: 'var(--color-text-muted)' }}>
+            Search: &quot;{queryQ}&quot; — {filteredPatients.length} result(s)
+          </p>
+        )}
         {(user?.role === 'super_admin' || user?.role === 'role_super_admin') && !user?.org_id && (
           <select
             value={getSelectedOrgId()}
@@ -79,7 +101,7 @@ export default function Patients({ user, onLogout }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {patients.map((p) => (
+                  {filteredPatients.map((p) => (
                     <tr key={p.id}>
                       <td><strong>{p.mrn}</strong></td>
                       <td>{p.full_name || '—'}</td>
@@ -98,6 +120,7 @@ export default function Patients({ user, onLogout }) {
               </table>
             </div>
             {patients.length === 0 && currentOrgId && <p style={{ padding: '1rem', margin: 0, color: 'var(--color-text-muted)' }}>No patients yet. Register from Patient flow.</p>}
+            {patients.length > 0 && filteredPatients.length === 0 && queryQ && <p style={{ padding: '1rem', margin: 0, color: 'var(--color-text-muted)' }}>No patients match &quot;{queryQ}&quot;.</p>}
           </div>
         )}
       </div>

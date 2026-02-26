@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
 
 export default function Pharmacy({ user, onLogout }) {
+  const location = useLocation();
   const [tab, setTab] = useState('prescriptions');
   const [drugs, setDrugs] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
@@ -35,6 +37,10 @@ export default function Pharmacy({ user, onLogout }) {
   };
 
   useEffect(() => { load(); }, [currentOrgId, filterStatus, filterEncounter]);
+
+  useEffect(() => {
+    if (location.hash === '#categories') setTab('drugs');
+  }, [location.hash]);
 
   useEffect(() => {
     if (!selectedStoreId) { setInventory([]); return; }
@@ -82,7 +88,7 @@ export default function Pharmacy({ user, onLogout }) {
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Pharmacy</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Drugs, prescriptions, dispense, inventory.</p>
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Manage medicine list, prescriptions, dispense, inventory.</p>
         {!currentOrgId && (user?.role === 'super_admin' || user?.role === 'role_super_admin') && (
           <p className="login-error" style={{ marginBottom: '1rem' }}>Select an organization in the sidebar to use this page.</p>
         )}
@@ -90,14 +96,14 @@ export default function Pharmacy({ user, onLogout }) {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
           <button type="button" className={tab === 'prescriptions' ? 'flow-step active' : 'flow-step'} onClick={() => setTab('prescriptions')}>Prescriptions</button>
-          <button type="button" className={tab === 'drugs' ? 'flow-step active' : 'flow-step'} onClick={() => setTab('drugs')}>Drugs</button>
+          <button type="button" className={tab === 'drugs' ? 'flow-step active' : 'flow-step'} onClick={() => setTab('drugs')}>Manage Medicine List / Categories</button>
           <button type="button" className={tab === 'inventory' ? 'flow-step active' : 'flow-step'} onClick={() => setTab('inventory')}>Inventory</button>
         </div>
 
         {tab === 'drugs' && (
-          <div className="card card-interactive">
+          <div id="categories" className="card card-interactive">
             <div className="card-body">
-              <h3 style={{ marginTop: 0 }}>Drug catalog</h3>
+              <h3 style={{ marginTop: 0 }}>Manage Medicine List &amp; Categories</h3>
               <form onSubmit={handleCreateDrug} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                 <input type="text" value={newDrugName} onChange={(e) => setNewDrugName(e.target.value)} placeholder="Drug name" required style={{ padding: '0.5rem' }} />
                 <input type="text" value={newDrugCode} onChange={(e) => setNewDrugCode(e.target.value)} placeholder="Code" style={{ padding: '0.5rem' }} />

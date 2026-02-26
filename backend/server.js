@@ -32,6 +32,15 @@ const uhpcmsPharmacy = require('./routes/uhpcms-pharmacy');
 const uhpcmsClinic = require('./routes/uhpcms-clinic');
 const uhpcmsReporting = require('./routes/uhpcms-reporting');
 const uhpcmsAudit = require('./routes/uhpcms-audit');
+const uhpcmsNoticeboard = require('./routes/uhpcms-noticeboard');
+const uhpcmsCases = require('./routes/uhpcms-cases');
+const uhpcmsActivities = require('./routes/uhpcms-activities');
+const uhpcmsSchedules = require('./routes/uhpcms-schedules');
+const uhpcmsBeds = require('./routes/uhpcms-beds');
+const uhpcmsInsurance = require('./routes/uhpcms-insurance');
+const uhpcmsChat = require('./routes/uhpcms-chat');
+const uhpcmsDocuments = require('./routes/uhpcms-documents');
+const uhpcmsSearch = require('./routes/uhpcms-search');
 
 const app = express();
 // CORS: allow single origin (string), array of origins, or true for all
@@ -62,6 +71,15 @@ app.use('/api/uhpcms/pharmacy', uhpcmsPharmacy);
 app.use('/api/uhpcms/clinic', uhpcmsClinic);
 app.use('/api/uhpcms/reporting', uhpcmsReporting);
 app.use('/api/uhpcms/audit', uhpcmsAudit);
+app.use('/api/uhpcms/noticeboard', uhpcmsNoticeboard);
+app.use('/api/uhpcms/cases', uhpcmsCases);
+app.use('/api/uhpcms/activities', uhpcmsActivities);
+app.use('/api/uhpcms/schedules', uhpcmsSchedules);
+app.use('/api/uhpcms/beds', uhpcmsBeds);
+app.use('/api/uhpcms/insurance', uhpcmsInsurance);
+app.use('/api/uhpcms/chat', uhpcmsChat);
+app.use('/api/uhpcms/documents', uhpcmsDocuments);
+app.use('/api/uhpcms/search', uhpcmsSearch);
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, db: config.dbType });

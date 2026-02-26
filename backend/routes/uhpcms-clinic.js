@@ -63,4 +63,13 @@ router.patch('/appointments/:id/complete', audit('clinic', 'complete_appointment
   }
 });
 
+router.patch('/appointments/:id/cancel', audit('clinic', 'cancel_appointment'), async (req, res) => {
+  try {
+    await db.run('UPDATE appointments SET status = $1 WHERE id = $2', ['cancelled', req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: e.message });
+  }
+});
+
 module.exports = router;

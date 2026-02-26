@@ -11,7 +11,7 @@ const databaseUrl = process.env.DATABASE_URL || (function () {
   const enc = encodeURIComponent;
   return `postgres://${enc(u)}:${enc(p || '')}@${h}:${port}/${enc(db)}`;
 })();
-const usePostgres = databaseUrl || (process.env.DB_TYPE || 'sqlite').toLowerCase() === 'postgres';
+const usePostgres = (process.env.DB_TYPE || 'sqlite').toLowerCase() === 'postgres' && !!databaseUrl;
 
 // Allow frontend origin(s) for CORS. Comma-separated list, or true to allow all.
 function getCorsOrigin() {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -12,6 +12,9 @@ import {
   Line,
   AreaChart,
   Area,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import { api } from './api';
 import Layout from './Layout';
@@ -118,14 +121,109 @@ export default function Dashboard({ user, onLogout }) {
   const revenueByDay = analytics?.revenue_by_day?.length
     ? analytics.revenue_by_day
     : [];
+  const pieData = statusBarData.length
+    ? statusBarData.map((d, i) => ({ ...d, value: d.count, fill: ['#1e3a5f', '#0d9488', '#ea580c', '#6b7280'][i % 4] }))
+    : [{ name: 'No data', value: 1, fill: '#e5e7eb' }];
+
+  const FEATURE_LINKS = [
+    { path: '/appointments', label: 'Appointments', icon: '📅' },
+    { path: '/patients', label: 'Patients', icon: '👥' },
+    { path: '/doctors', label: 'Doctors', icon: '👨‍⚕️' },
+    { path: '/departments', label: 'Departments', icon: '🏢' },
+    { path: '/hrm', label: 'HRM', icon: '👥' },
+    { path: '/noticeboard', label: 'Noticeboard', icon: '📌' },
+    { path: '/chat', label: 'Chat', icon: '💬' },
+    { path: '/billing', label: 'Billing', icon: '💰' },
+    { path: '/reporting', label: 'Reports', icon: '📈' },
+    { path: '/settings', label: 'Settings', icon: '🔧' },
+    { path: '/org-admin', label: 'Account Manager', icon: '⚙️' },
+    { path: '/insurance', label: 'Insurance', icon: '🛡️' },
+    { path: '/cases', label: 'Case Manager', icon: '📋' },
+    { path: '/activities', label: 'Activities', icon: '📊' },
+    { path: '/lab', label: 'Lab', icon: '🔬' },
+  ];
 
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
-        <h2 className="section-title">Dashboard</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-          {isAdmin ? 'Overview and analytics' : 'Your overview'}
-        </p>
+        <header className="dashboard-header">
+          <h2 className="section-title">Dashboard</h2>
+          <p className="dashboard-subtitle">
+            {isAdmin ? 'Overview and analytics' : 'Your overview'}
+          </p>
+        </header>
+
+        {/* Main KPI cards — aligned boxes with clear UI */}
+        <section className="dashboard-overview">
+          <div className="dashboard-kpi-row">
+          <div className="stat-card stat-card--blue">
+            <div className="stat-card-icon">👥</div>
+            <div className="stat-card-label">Total Patients</div>
+            <div className="stat-card-value">
+              {uhpcmsDashboard ? (patients?.length ?? uhpcmsDashboard.total_encounters ?? 0) : (stats?.patients ?? patients?.length ?? 0)}
+            </div>
+          </div>
+          <div className="stat-card stat-card--green">
+            <div className="stat-card-icon">👨‍⚕️</div>
+            <div className="stat-card-label">Total Doctors</div>
+            <div className="stat-card-value">{stats?.doctors ?? employees?.filter((e) => e.role === 'doctor').length ?? 0}</div>
+          </div>
+          <div className="stat-card stat-card--orange">
+            <div className="stat-card-icon">📅</div>
+            <div className="stat-card-label">Appointments</div>
+            <div className="stat-card-value">{uhpcmsDashboard?.total_encounters ?? opd?.length ?? 0}</div>
+          </div>
+          </div>
+        </section>
+
+        {/* Charts row: line + pie */}
+        <div className="dashboard-charts">
+          {encountersByDay.length > 0 ? (
+            <div className="dashboard-chart-card">
+              <h3>Encounters (last 7 days)</h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={encountersByDay} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 4 }} name="Encounters" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="dashboard-chart-card">
+              <h3>Encounters (last 7 days)</h3>
+              <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-muted)' }}>
+                No data yet
+              </div>
+            </div>
+          )}
+          <div className="dashboard-chart-card">
+            <h3>Status breakdown</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="status" cx="50%" cy="50%" outerRadius={80} label={(e) => e.status || e.name}>
+                  {pieData.map((entry, index) => (
+                    <Cell key={index} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Key features grid */}
+        <h3 className="section-title" style={{ fontSize: '1.125rem' }}>Key features</h3>
+        <div className="dashboard-feature-grid">
+          {FEATURE_LINKS.map((f) => (
+            <Link key={f.path} to={f.path} className="dashboard-feature-card">
+              <span className="dashboard-feature-icon">{f.icon}</span>
+              <span className="dashboard-feature-label">{f.label}</span>
+            </Link>
+          ))}
+        </div>
 
         {/* KPI cards — U-HPCMS */}
         {uhpcmsDashboard && (

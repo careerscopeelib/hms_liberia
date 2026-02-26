@@ -51,6 +51,10 @@ async function init() {
     } catch (_) { /* column may already exist */ }
     const uhpcmsV3Path = path.join(__dirname, '..', 'database', 'schema-uhpcms-v3-sqlite.sql');
     if (fs.existsSync(uhpcmsV3Path)) db.exec(fs.readFileSync(uhpcmsV3Path, 'utf8'));
+    const uhpcmsV4Path = path.join(__dirname, '..', 'database', 'schema-uhpcms-v4-sqlite.sql');
+    if (fs.existsSync(uhpcmsV4Path)) db.exec(fs.readFileSync(uhpcmsV4Path, 'utf8'));
+    const uhpcmsV5Path = path.join(__dirname, '..', 'database', 'schema-uhpcms-v5-sqlite.sql');
+    if (fs.existsSync(uhpcmsV5Path)) db.exec(fs.readFileSync(uhpcmsV5Path, 'utf8'));
     const patientOrgCols = ['full_name', 'date_of_birth', 'gender', 'phone', 'address'];
     for (const col of patientOrgCols) {
       try {

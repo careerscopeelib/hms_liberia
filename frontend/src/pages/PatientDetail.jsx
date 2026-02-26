@@ -16,6 +16,10 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
   const [transferShow, setTransferShow] = useState(null);
   const [transferForm, setTransferForm] = useState({ to_org_id: '', from_mrn: '', transfer_type: 'to_hospital', reason: '', summary_notes: '', create_encounter_at_dest: true });
   const [organizations, setOrganizations] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [docUploadName, setDocUploadName] = useState('');
+  const [docUploadFile, setDocUploadFile] = useState(null);
+  const [docUploading, setDocUploading] = useState(false);
   const currentOrgId = getEffectiveOrgId(user);
 
   useEffect(() => {
@@ -30,7 +34,73 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
     api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => []);
   }, []);
 
-  const handleSaveEdit = async (e) => {
+  useEffect(() => {
+    if (tab !== 'documents' || !data?.patient?.mrn || !currentOrgId) return;
+    api.uhpcms.getDocuments({ org_id: currentOrgId, patient_mrn: data.patient.mrn })
+      .then((r) => setDocuments(r.data || []))
+      .catch(() => setDocuments([]));
+  }, [tab, data?.patient?.mrn, currentOrgId]);
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this patient? Only possible when they have no encounters.')) return;
+    setError('');
+    try {
+      await api.uhpcms.deletePatient(id);
+      navigate('/patients');
+    } catch (e) { setError(e.message); }
+  };
+
+  const handleDocumentUpload = async (e) => {
+    e.preventDefault();
+    if (!data?.patient?.mrn || !currentOrgId || !docUploadName.trim()) return;
+    const file = docUploadFile;
+    if (!file) { setError('Choose a file'); return; }
+    setDocUploading(true);
+    setError('');
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = reader.result?.toString().split(',')[1] || '';
+          await api.uhpcms.uploadDocument({
+            org_id: currentOrgId,
+            patient_mrn: data.patient.mrn,
+            name: docUploadName.trim(),
+            content_type: file.type || 'application/octet-stream',
+            content: base64,
+          });
+          const r = await api.uhpcms.getDocuments({ org_id: currentOrgId, patient_mrn: data.patient.mrn });
+          setDocuments(r.data || []);
+          setDocUploadName('');
+          setDocUploadFile(null);
+        } catch (err) { setError(err.message); }
+        finally { setDocUploading(false); }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) { setError(err.message); setDocUploading(false); }
+  };
+
+  const handleDocumentView = async (docId) => {
+    try {
+      const r = await api.uhpcms.getDocument(docId);
+      const d = r.data;
+      if (d.content) {
+        const blob = new Blob([Uint8Array.from(atob(d.content), (c) => c.charCodeAt(0))], { type: d.content_type || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        window.open(url);
+      }
+    } catch (err) { setError(err.message); }
+  };
+
+  const handleDocumentDelete = async (docId) => {
+    if (!window.confirm('Delete this document?')) return;
+    try {
+      await api.uhpcms.deleteDocument(docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } catch (err) { setError(err.message); }
+  };
+
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editForm || !id) return;
     setSaving(true);
@@ -52,16 +122,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
     finally { setSaving(false); }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Delete this patient? Only possible when they have no encounters.')) return;
-    setError('');
-    try {
-      await api.uhpcms.deletePatient(id);
-      navigate('/patients');
-    } catch (e) { setError(e.message); }
-  };
-
-  const handleTransfer = async (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!data?.patient || !transferForm.to_org_id) return;
     setError('');
@@ -103,6 +164,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-primary" onClick={() => setTab('overview')}>Overview</button>
             <button type="button" className="btn" onClick={() => setTab('edit')}>Edit</button>
+            <button type="button" className="btn" onClick={() => setTab('documents')}>Documents</button>
             <button type="button" className="btn" onClick={() => setTransferShow('to_hospital')}>Transfer to hospital</button>
             <button type="button" className="btn" onClick={() => setTransferShow('from_hospital')}>Transfer from hospital</button>
             <button type="button" className="btn" style={{ color: 'var(--color-error, #c00)' }} onClick={handleDelete}>Delete</button>
@@ -186,10 +248,40 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
           </>
         )}
 
+        {tab === 'documents' && (
+          <div className="card" style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ marginTop: 0 }}>Documents</h3>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Upload and view patient documents.</p>
+            <form onSubmit={handleDocumentUpload} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+              <input type="text" placeholder="Document name" value={docUploadName} onChange={(e) => setDocUploadName(e.target.value)} style={{ padding: '0.5rem', minWidth: 200 }} required />
+              <input type="file" onChange={(e) => setDocUploadFile(e.target.files?.[0] || null)} style={{ padding: '0.5rem' }} />
+              <button type="submit" className="btn-primary" disabled={docUploading}>{docUploading ? 'Uploading…' : 'Upload'}</button>
+            </form>
+            <div className="table-wrap">
+              <table className="table">
+                <thead><tr><th>Name</th><th>Type</th><th>Created</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {documents.map((d) => (
+                    <tr key={d.id}>
+                      <td>{d.name}</td>
+                      <td>{d.content_type}</td>
+                      <td>{d.created_at}</td>
+                      <td>
+                        <button type="button" className="btn" onClick={() => handleDocumentView(d.id)}>View</button>
+                        <button type="button" className="btn table-actions btn--danger" onClick={() => handleDocumentDelete(d.id)}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {tab === 'edit' && editForm && (
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Edit patient</h3>
-            <form onSubmit={handleSaveEdit} style={{ display: 'grid', gap: '0.75rem', maxWidth: 400 }}>
+            <form onSubmit={handleEditSubmit} style={{ display: 'grid', gap: '0.75rem', maxWidth: 400 }}>
               <label>Full name <input type="text" value={editForm.full_name || ''} onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))} style={{ width: '100%', padding: '0.5rem' }} /></label>
               <label>Date of birth <input type="date" value={editForm.date_of_birth || ''} onChange={(e) => setEditForm((f) => ({ ...f, date_of_birth: e.target.value }))} style={{ width: '100%', padding: '0.5rem' }} /></label>
               <label>Gender <select value={editForm.gender || ''} onChange={(e) => setEditForm((f) => ({ ...f, gender: e.target.value }))} style={{ width: '100%', padding: '0.5rem' }}><option value="">—</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></label>
@@ -204,7 +296,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
         {transferShow && (
           <div className="card" style={{ marginTop: '1rem', maxWidth: 500 }}>
             <h3 style={{ marginTop: 0 }}>{transferShow === 'to_hospital' ? 'Transfer to hospital' : 'Transfer from hospital'}</h3>
-            <form onSubmit={handleTransfer}>
+            <form onSubmit={handleSaveEdit}>
               <label>Destination / Source organization</label>
               <select value={transferForm.to_org_id} onChange={(e) => setTransferForm((f) => ({ ...f, to_org_id: e.target.value }))} required style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}>
                 <option value="">— Select —</option>

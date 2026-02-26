@@ -10,17 +10,26 @@ export default function Appointments({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [viewToday, setViewToday] = useState(false);
   const [newPatientMrn, setNewPatientMrn] = useState('');
   const [newScheduledAt, setNewScheduledAt] = useState('');
   const [newDepartmentId, setNewDepartmentId] = useState('');
   const [checkInEncounterId, setCheckInEncounterId] = useState({});
   const orgId = getEffectiveOrgId(user);
 
+  const todayStr = (() => { const d = new Date(); return d.toISOString().slice(0, 10); })();
+
   const load = () => {
     if (!orgId) return;
     setLoading(true);
     const params = { org_id: orgId };
     if (filterStatus) params.status = filterStatus;
+    if (viewToday) {
+      const d = new Date();
+      const today = d.toISOString().slice(0, 10);
+      params.from_date = today;
+      params.to_date = today;
+    }
     Promise.all([
       api.uhpcms.getAppointments(params).then((r) => setAppointments(r.data || [])),
       api.uhpcms.getDepartments(orgId).then((r) => setDepartments(r.data || [])),
@@ -28,7 +37,12 @@ export default function Appointments({ user, onLogout }) {
     ]).catch(() => {}).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [orgId, filterStatus]);
+  useEffect(() => { load(); }, [orgId, filterStatus, viewToday]);
+  useEffect(() => {
+    if (!orgId) return;
+    const interval = setInterval(load, 45000);
+    return () => clearInterval(interval);
+  }, [orgId, filterStatus, viewToday]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -56,6 +70,15 @@ export default function Appointments({ user, onLogout }) {
     setError('');
     try {
       await api.uhpcms.completeAppointment(aptId);
+      load();
+    } catch (e) { setError(e.message); }
+  };
+
+  const handleCancel = async (aptId) => {
+    if (!window.confirm('Cancel this appointment?')) return;
+    setError('');
+    try {
+      await api.uhpcms.cancelAppointment(aptId);
       load();
     } catch (e) { setError(e.message); }
   };
@@ -94,13 +117,26 @@ export default function Appointments({ user, onLogout }) {
           </div>
         </div>
 
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '0.5rem' }}>
             <option value="">All status</option>
             <option value="scheduled">scheduled</option>
             <option value="checked_in">checked_in</option>
             <option value="completed">completed</option>
+            <option value="cancelled">cancelled</option>
           </select>
+          <button
+            type="button"
+            className={`btn ${viewToday ? 'btn-primary' : ''}`}
+            onClick={() => setViewToday(!viewToday)}
+          >
+            {viewToday ? `Today (${appointments.length}) — Show all` : "View today's appointments"}
+          </button>
+          {viewToday && (
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+              Showing appointments for {todayStr}
+            </span>
+          )}
         </div>
 
         <div className="card">
@@ -119,15 +155,21 @@ export default function Appointments({ user, onLogout }) {
                     <td>{apt.encounter_id || '—'}</td>
                     <td>
                       {apt.status === 'scheduled' && (
-                        <span style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <span style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
                           <select value={checkInEncounterId[apt.id] || ''} onChange={(e) => setCheckInEncounterId((prev) => ({ ...prev, [apt.id]: e.target.value }))} style={{ padding: '0.25rem' }}>
                             <option value="">Encounter (optional)</option>
                             {encounters.map((enc) => <option key={enc.id} value={enc.id}>{enc.id}</option>)}
                           </select>
                           <button type="button" className="btn-primary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleCheckIn(apt.id)}>Check-in</button>
+                          <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleCancel(apt.id)}>Cancel</button>
                         </span>
                       )}
-                      {apt.status === 'checked_in' && <button type="button" className="btn-primary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleComplete(apt.id)}>Complete</button>}
+                      {apt.status === 'checked_in' && (
+                        <span style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                          <button type="button" className="btn-primary" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleComplete(apt.id)}>Complete</button>
+                          <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleCancel(apt.id)}>Cancel</button>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
