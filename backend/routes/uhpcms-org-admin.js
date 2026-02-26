@@ -161,6 +161,9 @@ router.get('/users', orgContext, audit('org_admin', 'list_users'), async (req, r
     );
     res.json({ ok: true, data: rows });
   } catch (e) {
+    if (e.code === '42P01' || e.message?.includes('does not exist') || e.message?.includes('no such table')) {
+      return res.json({ ok: true, data: [] });
+    }
     res.status(500).json({ ok: false, message: e.message });
   }
 });

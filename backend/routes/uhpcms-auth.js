@@ -16,7 +16,7 @@ router.post('/login', async (req, res) => {
 
     if (email && password) {
       userRow = await db.get(
-        'SELECT id, org_id, email, password_hash, role_id, full_name, status FROM system_users WHERE email = $1 AND status = $2',
+        'SELECT id, org_id, email, password_hash, role_id, full_name, status FROM system_users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) AND status = $2',
         [email, 'active']
       );
       if (userRow) {
@@ -83,10 +83,15 @@ router.post('/login', async (req, res) => {
     let enabled_modules = null;
     let enabled_addons = null;
     if (userRow.org_id) {
-      const modRows = await db.query('SELECT module_name FROM org_modules WHERE org_id = $1 AND enabled = 1', [userRow.org_id]);
-      const addonRows = await db.query('SELECT addon_name FROM org_addons WHERE org_id = $1 AND enabled = 1', [userRow.org_id]);
-      enabled_modules = modRows.map((r) => r.module_name);
-      enabled_addons = addonRows.map((r) => r.addon_name);
+      try {
+        const modRows = await db.query('SELECT module_name FROM org_modules WHERE org_id = $1 AND enabled = 1', [userRow.org_id]);
+        const addonRows = await db.query('SELECT addon_name FROM org_addons WHERE org_id = $1 AND enabled = 1', [userRow.org_id]);
+        enabled_modules = modRows.map((r) => r.module_name);
+        enabled_addons = addonRows.map((r) => r.addon_name);
+      } catch (_) {
+        enabled_modules = [];
+        enabled_addons = [];
+      }
     }
 
     res.json({

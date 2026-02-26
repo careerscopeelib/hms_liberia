@@ -86,6 +86,9 @@ router.get('/organizations/:id/modules', async (req, res) => {
     const rows = await db.query('SELECT module_name, enabled FROM org_modules WHERE org_id = $1', [req.params.id]);
     res.json({ ok: true, data: rows });
   } catch (e) {
+    if (e.code === '42P01' || e.message?.includes('does not exist') || e.message?.includes('no such table')) {
+      return res.json({ ok: true, data: [] });
+    }
     res.status(500).json({ ok: false, message: e.message });
   }
 });
@@ -114,6 +117,9 @@ router.get('/organizations/:id/addons', async (req, res) => {
     const rows = await db.query('SELECT addon_name, enabled FROM org_addons WHERE org_id = $1', [req.params.id]);
     res.json({ ok: true, data: rows });
   } catch (e) {
+    if (e.code === '42P01' || e.message?.includes('does not exist') || e.message?.includes('no such table')) {
+      return res.json({ ok: true, data: [] });
+    }
     res.status(500).json({ ok: false, message: e.message });
   }
 });
