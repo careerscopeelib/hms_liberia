@@ -267,11 +267,15 @@ router.patch('/users/:id', requireRole('super_admin'), async (req, res) => {
   }
 });
 
-// DELETE /api/uhpcms/governance/users/:id (super_admin only; sets inactive to avoid breaking references, or hard delete)
+// DELETE /api/uhpcms/governance/users/:id (super_admin only; deactivate any user — org or super_admin created)
 router.delete('/users/:id', requireRole('super_admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const existing = await db.get('SELECT id FROM system_users WHERE id = $1', [id]);
+    const currentUserId = req.user?.sub || req.user?.id;
+    if (currentUserId && id === currentUserId) {
+      return res.status(400).json({ ok: false, message: 'You cannot delete your own account.' });
+    }
+    const existing = await db.get('SELECT id, org_id FROM system_users WHERE id = $1', [id]);
     if (!existing) return res.status(404).json({ ok: false, message: 'User not found' });
     await db.run('UPDATE system_users SET status = $1 WHERE id = $2', ['inactive', id]);
     res.json({ ok: true });

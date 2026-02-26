@@ -108,13 +108,10 @@ export default function Login({ onLogin }) {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-        <p className="login-demo">
-          <strong>Demo logins</strong> (run backend seed scripts first). Use <strong>Email (U-HPCMS)</strong> for all below.
-        </p>
+        
         <div className="login-demo-list" style={{ textAlign: 'left', marginTop: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
           <p style={{ margin: '0.25rem 0' }}><strong>Super Admin:</strong> super@uhpcms.local / admin123</p>
-          <p style={{ margin: '0.25rem 0' }}><strong>Org Admin:</strong> orgadmin@demo.local / admin123</p>
-          <p style={{ margin: '0.25rem 0' }}><strong>Portal:</strong> doctor@demo.local, nurse@demo.local, receptionist@demo.local, accountant@demo.local, pharmacist@demo.local, representative@demo.local — password: admin123</p>
+
         </div>
       </div>
     </div>

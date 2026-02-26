@@ -198,11 +198,15 @@ export default function Governance({ user, onLogout }) {
       setSavingUser(false);
     }
   };
-  const deleteGovernanceUserConfirm = async (id) => {
-    if (!window.confirm('Deactivate this user? They will no longer be able to log in.')) return;
+  const deleteGovernanceUserConfirm = async (u) => {
+    if (u.id === user?.id) {
+      setError('You cannot delete your own account.');
+      return;
+    }
+    if (!window.confirm(`Delete user "${u.email}"? They will be deactivated and cannot log in. You can reactivate them later via Edit.`)) return;
     setError('');
     try {
-      await api.uhpcms.deleteGovernanceUser(id);
+      await api.uhpcms.deleteGovernanceUser(u.id);
       loadGovernanceUsers();
     } catch (e) {
       setError(e.message);
@@ -389,7 +393,9 @@ export default function Governance({ user, onLogout }) {
                     <td>{u.status}</td>
                     <td>
                       <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', marginRight: '0.25rem' }} onClick={() => openEditUser(u)}>Edit</button>
-                      <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger, #c00)' }} onClick={() => deleteGovernanceUserConfirm(u.id)}>Deactivate</button>
+                      <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger, #c00)' }} onClick={() => deleteGovernanceUserConfirm(u)} disabled={u.id === user?.id} title={u.id === user?.id ? 'You cannot delete your own account' : 'Deactivate user (they can be reactivated via Edit)'}>
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
