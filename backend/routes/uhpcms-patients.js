@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -30,11 +30,8 @@ router.get('/next-mrn', async (req, res) => {
   try {
     const org_id = req.user?.org_id || req.query.org_id;
     if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
-    const row = await db.query('SELECT mrn FROM patient_org WHERE org_id = $1 ORDER BY id DESC LIMIT 1', [org_id]);
-    const last = row[0]?.mrn || '';
-    const num = last.replace(/^MRN0*/, '') || '0';
-    const next = 'MRN' + String(parseInt(num, 10) + 1).padStart(3, '0');
-    res.json({ ok: true, mrn: next });
+    const mrn = await ids.getNextMrn(org_id);
+    res.json({ ok: true, mrn });
   } catch (e) {
     res.status(500).json({ ok: false, message: e.message });
   }
@@ -45,7 +42,7 @@ router.post('/register', audit('patient', 'register'), async (req, res) => {
     const org_id = req.user?.org_id || req.body.org_id;
     const { mrn, pid, full_name, date_of_birth, gender, phone, address } = req.body || {};
     if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
-    const useMrn = mrn || ('MRN' + Date.now().toString(36).toUpperCase().slice(-6));
+    const useMrn = mrn || (await ids.getNextMrn(org_id));
     const existing = await db.get('SELECT id FROM patient_org WHERE org_id = $1 AND mrn = $2', [org_id, useMrn]);
     if (existing) return res.status(400).json({ ok: false, message: 'MRN already exists' });
     await db.run(
@@ -187,16 +184,13 @@ router.post('/transfer', audit('patient', 'transfer'), async (req, res) => {
     let encounterIdAtDest = null;
     const destOrgExists = await db.get('SELECT id, mrn FROM patient_org WHERE org_id = $1 AND mrn = $2', [to_org_id, destMrn]);
     if (!destOrgExists) {
-      const nextRow = await db.query('SELECT mrn FROM patient_org WHERE org_id = $1 ORDER BY id DESC LIMIT 1', [to_org_id]);
-      const last = nextRow[0]?.mrn || '';
-      const num = last.replace(/^MRN0*/, '') || '0';
-      destMrn = 'MRN' + String(parseInt(num, 10) + 1).padStart(3, '0');
+      destMrn = await ids.getNextMrn(to_org_id);
       await db.run(
         'INSERT INTO patient_org (mrn, org_id, pid, full_name, date_of_birth, gender, phone, address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
         [destMrn, to_org_id, sourcePatient.pid || null, sourcePatient.full_name || null, sourcePatient.date_of_birth || null, sourcePatient.gender || null, sourcePatient.phone || null, sourcePatient.address || null]
       );
       if (create_encounter_at_dest) {
-        const encId = 'enc_' + crypto.randomBytes(8).toString('hex');
+        const encId = await ids.getNextEncounterId(to_org_id);
         await db.run(
           'INSERT INTO encounters (id, org_id, patient_mrn, status, triage_notes, soap_notes) VALUES ($1, $2, $3, $4, $5, $6)',
           [encId, to_org_id, destMrn, 'registered', summary_notes || null, `Transfer from ${sourcePatient.mrn} (${from_org_id}). ${reason || ''}`]
@@ -206,7 +200,7 @@ router.post('/transfer', audit('patient', 'transfer'), async (req, res) => {
     } else {
       destMrn = destOrgExists.mrn;
     }
-    const transferId = 'xf_' + crypto.randomBytes(8).toString('hex');
+    const transferId = await ids.getNextTransferId();
     const transferredBy = req.user?.sub || req.user?.id;
     await db.run(
       'INSERT INTO patient_transfers (id, from_org_id, to_org_id, from_mrn, to_mrn, transfer_type, reason, summary_notes, encounter_id_at_dest, transferred_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',

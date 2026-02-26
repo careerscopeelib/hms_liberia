@@ -25,6 +25,7 @@ npm install
 - Apply seed: `psql -U postgres -d hospital -f database/seed-postgres.sql`
 - Or run: `npm run init-db:postgres` (requires `PG_*` in `.env`)
 - Set in `.env`: `DB_TYPE=postgres` and set `PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER`, `PG_PASSWORD`
+- **File attachments:** `npm run init-db:postgres` runs `schema-uhpcms-entity-docs-postgres.sql` so Lab, Insurance, Case Manager, HRM, Billing and Prescriptions can store attachments. If your Postgres DB was created before that, run once: `psql $DATABASE_URL -f database/schema-uhpcms-entity-docs-postgres.sql`
 
 ### 3. Environment
 

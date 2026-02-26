@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -32,8 +32,8 @@ router.post('/', orgContext, async (req, res) => {
   try {
     const { title, content, is_pinned } = req.body || {};
     if (!title) return res.status(400).json({ ok: false, message: 'title required' });
-    const id = 'nb_' + crypto.randomBytes(8).toString('hex');
     const orgId = req.orgId || req.body.org_id;
+    const id = await ids.getNextNoticeId(orgId);
     await db.run(
       'INSERT INTO noticeboard (id, org_id, title, content, created_by, is_pinned) VALUES ($1, $2, $3, $4, $5, $6)',
       [id, orgId, title, content || '', req.user?.id || null, is_pinned ? 1 : 0]

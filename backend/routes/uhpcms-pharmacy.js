@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -26,7 +26,7 @@ router.post('/drugs', audit('pharmacy', 'create_drug'), async (req, res) => {
     const { name, code, unit } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
     const org_id = req.user?.org_id || req.body.org_id;
-    const id = 'drug_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextPrefixedId('drugs', 'id', 'DRUG-', 'org_id', org_id);
     await db.run('INSERT INTO drugs (id, org_id, name, code, unit) VALUES ($1, $2, $3, $4, $5)', [id, org_id, name, code || null, unit || 'unit']);
     res.status(201).json({ ok: true, id });
   } catch (e) {
@@ -53,11 +53,13 @@ router.post('/prescriptions', audit('pharmacy', 'create_prescription'), async (r
   try {
     const { encounter_id, items } = req.body || {};
     if (!encounter_id || !Array.isArray(items) || !items.length) return res.status(400).json({ ok: false, message: 'encounter_id and items[] required' });
-    const id = 'rx_' + crypto.randomBytes(8).toString('hex');
+    const enc = await db.get('SELECT org_id FROM encounters WHERE id = $1', [encounter_id]);
+    if (!enc) return res.status(400).json({ ok: false, message: 'Encounter not found' });
+    const id = await ids.getNextPrescriptionId(enc.org_id);
     const prescribedBy = req.user?.sub || req.user?.id;
     await db.run('INSERT INTO prescriptions (id, encounter_id, prescribed_by, status) VALUES ($1, $2, $3, $4)', [id, encounter_id, prescribedBy, 'pending']);
     for (const it of items) {
-      const itemId = 'rxi_' + crypto.randomBytes(6).toString('hex');
+      const itemId = await ids.getNextPrefixedId('prescription_items', 'id', 'RXI-', null, null);
       await db.run(
         'INSERT INTO prescription_items (id, prescription_id, drug_id, quantity, dosage, duration) VALUES ($1, $2, $3, $4, $5, $6)',
         [itemId, id, it.drug_id, it.quantity || 1, it.dosage || null, it.duration || null]

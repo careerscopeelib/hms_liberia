@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -35,7 +35,7 @@ router.post('/', orgContext, async (req, res) => {
   try {
     const { ward_id, bed_number } = req.body || {};
     if (!ward_id || !bed_number) return res.status(400).json({ ok: false, message: 'ward_id and bed_number required' });
-    const id = 'bed_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextPrefixedId('beds', 'id', 'BED-', null, null);
     await db.run(
       'INSERT INTO beds (id, ward_id, bed_number, status) VALUES ($1, $2, $3, $4)',
       [id, ward_id, bed_number, 'available']

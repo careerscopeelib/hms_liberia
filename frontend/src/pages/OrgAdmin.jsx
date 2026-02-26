@@ -28,6 +28,9 @@ export default function OrgAdmin({ user, onLogout }) {
   const [successMsg, setSuccessMsg] = useState('');
   const [createdUserEmail, setCreatedUserEmail] = useState('');
   const [form, setForm] = useState({ name: '', bed_count: '', code: '', default_amount: '', default_currency: 'USD', email: '', password: '', role_id: '', full_name: '', department_id: '' });
+  const [editingUser, setEditingUser] = useState(null);
+  const [editUserForm, setEditUserForm] = useState({ email: '', full_name: '', role_id: '', status: 'active', password: '' });
+  const [savingEditUser, setSavingEditUser] = useState(false);
 
   const currentOrgId = (user?.org_id ? user.org_id : getEffectiveOrgId(user)) || orgId || organizations[0]?.id;
 
@@ -159,6 +162,41 @@ export default function OrgAdmin({ user, onLogout }) {
     }).catch(() => {});
   };
 
+  const openEditUser = (u) => {
+    setEditingUser(u);
+    setEditUserForm({ email: u.email, full_name: u.full_name || '', role_id: u.role_id || '', status: u.status || 'active', password: '' });
+  };
+  const saveEditUser = async () => {
+    if (!editingUser || !currentOrgId) return;
+    setSavingEditUser(true);
+    setError('');
+    try {
+      await api.uhpcms.updateUser(currentOrgId, editingUser.id, {
+        email: editUserForm.email,
+        full_name: editUserForm.full_name || null,
+        role_id: editUserForm.role_id || null,
+        status: editUserForm.status,
+        ...(editUserForm.password ? { password: editUserForm.password } : {}),
+      });
+      refresh();
+      setEditingUser(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSavingEditUser(false);
+    }
+  };
+  const deleteUserConfirm = async (u) => {
+    if (!window.confirm(`Deactivate ${u.email}? They will no longer be able to log in.`)) return;
+    setError('');
+    try {
+      await api.uhpcms.deleteUser(currentOrgId, u.id);
+      refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
@@ -260,7 +298,21 @@ export default function OrgAdmin({ user, onLogout }) {
                 </select>
                 <button type="submit" className="btn-primary" disabled={!currentOrgId || loading}>Create user</button>
               </form>
-              <div className="table-wrap"><table className="table"><thead><tr><th>Email</th><th>Full name</th><th>Role</th><th>Status</th></tr></thead><tbody>{users.map((u) => <tr key={u.id}><td>{u.email}</td><td>{u.full_name || '—'}</td><td>{roles.find((r) => r.id === u.role_id)?.name === 'accountant' ? 'Finance Manager (Accountant)' : (roles.find((r) => r.id === u.role_id)?.name || u.role_id || '—').replace(/_/g, ' ')}</td><td>{u.status}</td></tr>)}</tbody></table></div>
+              <div className="table-wrap"><table className="table"><thead><tr><th>Email</th><th>Full name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>{users.map((u) => <tr key={u.id}><td>{u.email}</td><td>{u.full_name || '—'}</td><td>{roles.find((r) => r.id === u.role_id)?.name === 'accountant' ? 'Finance Manager (Accountant)' : (roles.find((r) => r.id === u.role_id)?.name || u.role_id || '—').replace(/_/g, ' ')}</td><td>{u.status}</td><td><button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', marginRight: '0.25rem' }} onClick={() => openEditUser(u)}>Edit</button><button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger, #c00)' }} onClick={() => deleteUserConfirm(u)}>Deactivate</button></td></tr>)}</tbody></table></div>
+              {editingUser && (
+                <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <h4 style={{ marginTop: 0 }}>Edit user: {editingUser.email}</h4>
+                  <div style={{ display: 'grid', gap: '0.5rem', maxWidth: 400, marginBottom: '0.75rem' }}>
+                    <label>Email <input type="email" value={editUserForm.email} onChange={(e) => setEditUserForm((f) => ({ ...f, email: e.target.value }))} style={{ padding: '0.5rem', width: '100%' }} /></label>
+                    <label>Full name <input type="text" value={editUserForm.full_name} onChange={(e) => setEditUserForm((f) => ({ ...f, full_name: e.target.value }))} style={{ padding: '0.5rem', width: '100%' }} /></label>
+                    <label>Role <select value={editUserForm.role_id} onChange={(e) => setEditUserForm((f) => ({ ...f, role_id: e.target.value }))} style={{ padding: '0.5rem', width: '100%' }}><option value="">—</option>{roles.map((r) => <option key={r.id} value={r.id}>{r.name === 'accountant' ? 'Finance Manager' : (r.name || r.id).replace(/_/g, ' ')}</option>)}</select></label>
+                    <label>Status <select value={editUserForm.status} onChange={(e) => setEditUserForm((f) => ({ ...f, status: e.target.value }))} style={{ padding: '0.5rem', width: '100%' }}><option value="active">Active</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></select></label>
+                    <label>New password (leave blank to keep) <input type="password" value={editUserForm.password} onChange={(e) => setEditUserForm((f) => ({ ...f, password: e.target.value }))} placeholder="Min 6" style={{ padding: '0.5rem', width: '100%' }} /></label>
+                  </div>
+                  <button type="button" className="btn-primary" disabled={savingEditUser} onClick={saveEditUser}>Save</button>
+                  <button type="button" className="btn" style={{ marginLeft: '0.5rem' }} onClick={() => setEditingUser(null)}>Cancel</button>
+                </div>
+              )}
             </div>
           </div>
         )}

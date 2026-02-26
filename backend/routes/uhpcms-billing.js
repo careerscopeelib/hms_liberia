@@ -3,7 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 
@@ -78,8 +78,10 @@ router.post('/charges', async (req, res) => {
     if (!encounter_id || !service_code || amount == null) {
       return res.status(400).json({ ok: false, message: 'encounter_id, service_code, amount required' });
     }
+    const enc = await db.get('SELECT org_id FROM encounters WHERE id = $1', [encounter_id]);
+    if (!enc) return res.status(400).json({ ok: false, message: 'Encounter not found' });
     const curr = 'USD';
-    const id = 'ch_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextChargeId(enc.org_id);
     await db.run(
       'INSERT INTO billing_charges (id, encounter_id, service_code, description, amount, currency, quantity) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, encounter_id, service_code, description || null, Number(amount), curr, quantity ?? 1]
@@ -95,13 +97,15 @@ router.post('/invoices', async (req, res) => {
   try {
     const { encounter_id } = req.body || {};
     if (!encounter_id) return res.status(400).json({ ok: false, message: 'encounter_id required' });
+    const enc = await db.get('SELECT org_id FROM encounters WHERE id = $1', [encounter_id]);
+    if (!enc) return res.status(400).json({ ok: false, message: 'Encounter not found' });
     const curr = 'USD';
     const charges = await db.query(
       'SELECT amount, quantity FROM billing_charges WHERE encounter_id = $1',
       [encounter_id]
     );
     const total = charges.reduce((s, c) => s + (c.amount || 0) * (c.quantity || 1), 0);
-    const id = 'inv_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextInvoiceId(enc.org_id);
     await db.run(
       'INSERT INTO invoices (id, encounter_id, total_amount, currency, status) VALUES ($1, $2, $3, $4, $5)',
       [id, encounter_id, total, curr, 'pending']
@@ -120,7 +124,7 @@ router.post('/payments', async (req, res) => {
     const allowedMethods = ['cash', 'bank', 'mobile_money'];
     const paymentMethod = (method && allowedMethods.includes(String(method).toLowerCase())) ? String(method).toLowerCase() : 'cash';
     const curr = 'USD';
-    const id = 'pay_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextPaymentId();
     await db.run(
       'INSERT INTO payments (id, invoice_id, amount, currency, method, reference) VALUES ($1, $2, $3, $4, $5, $6)',
       [id, invoice_id, Number(amount), curr, paymentMethod, reference || null]
@@ -194,14 +198,14 @@ router.post('/encounters/:id/initial-bill', async (req, res) => {
     );
     const curr = 'USD';
     for (const svc of services || []) {
-      const chargeId = 'ch_' + crypto.randomBytes(8).toString('hex');
+      const chargeId = await ids.getNextChargeId(enc.org_id);
       await db.run(
         'INSERT INTO billing_charges (id, encounter_id, service_code, description, amount, currency, quantity) VALUES ($1, $2, $3, $4, $5, $6, 1)',
         [chargeId, encounterId, svc.code, svc.name || null, Number(svc.default_amount), svc.default_currency || curr]
       );
     }
     if (!services || services.length === 0) {
-      const chargeId = 'ch_' + crypto.randomBytes(8).toString('hex');
+      const chargeId = await ids.getNextChargeId(enc.org_id);
       await db.run(
         'INSERT INTO billing_charges (id, encounter_id, service_code, description, amount, currency, quantity) VALUES ($1, $2, $3, $4, $5, $6, 1)',
         [chargeId, encounterId, 'REG', 'Registration / Consultation', 0, curr]

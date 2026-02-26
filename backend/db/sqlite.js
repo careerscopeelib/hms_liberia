@@ -55,6 +55,8 @@ async function init() {
     if (fs.existsSync(uhpcmsV4Path)) db.exec(fs.readFileSync(uhpcmsV4Path, 'utf8'));
     const uhpcmsV5Path = path.join(__dirname, '..', 'database', 'schema-uhpcms-v5-sqlite.sql');
     if (fs.existsSync(uhpcmsV5Path)) db.exec(fs.readFileSync(uhpcmsV5Path, 'utf8'));
+    const entityDocsPath = path.join(__dirname, '..', 'database', 'schema-uhpcms-entity-docs-sqlite.sql');
+    if (fs.existsSync(entityDocsPath)) db.exec(fs.readFileSync(entityDocsPath, 'utf8'));
     const patientOrgCols = ['full_name', 'date_of_birth', 'gender', 'phone', 'address'];
     for (const col of patientOrgCols) {
       try {

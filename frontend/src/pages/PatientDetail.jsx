@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
+import DocumentList from '../components/DocumentList';
 
 export default function PatientDetail({ user, onLogout, initialTab = 'overview' }) {
   const { id } = useParams();
@@ -17,9 +18,6 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
   const [transferForm, setTransferForm] = useState({ to_org_id: '', from_mrn: '', transfer_type: 'to_hospital', reason: '', summary_notes: '', create_encounter_at_dest: true });
   const [organizations, setOrganizations] = useState([]);
   const [documents, setDocuments] = useState([]);
-  const [docUploadName, setDocUploadName] = useState('');
-  const [docUploadFile, setDocUploadFile] = useState(null);
-  const [docUploading, setDocUploading] = useState(false);
   const currentOrgId = getEffectiveOrgId(user);
 
   useEffect(() => {
@@ -48,56 +46,6 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
       await api.uhpcms.deletePatient(id);
       navigate('/patients');
     } catch (e) { setError(e.message); }
-  };
-
-  const handleDocumentUpload = async (e) => {
-    e.preventDefault();
-    if (!data?.patient?.mrn || !currentOrgId || !docUploadName.trim()) return;
-    const file = docUploadFile;
-    if (!file) { setError('Choose a file'); return; }
-    setDocUploading(true);
-    setError('');
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const base64 = reader.result?.toString().split(',')[1] || '';
-          await api.uhpcms.uploadDocument({
-            org_id: currentOrgId,
-            patient_mrn: data.patient.mrn,
-            name: docUploadName.trim(),
-            content_type: file.type || 'application/octet-stream',
-            content: base64,
-          });
-          const r = await api.uhpcms.getDocuments({ org_id: currentOrgId, patient_mrn: data.patient.mrn });
-          setDocuments(r.data || []);
-          setDocUploadName('');
-          setDocUploadFile(null);
-        } catch (err) { setError(err.message); }
-        finally { setDocUploading(false); }
-      };
-      reader.readAsDataURL(file);
-    } catch (err) { setError(err.message); setDocUploading(false); }
-  };
-
-  const handleDocumentView = async (docId) => {
-    try {
-      const r = await api.uhpcms.getDocument(docId);
-      const d = r.data;
-      if (d.content) {
-        const blob = new Blob([Uint8Array.from(atob(d.content), (c) => c.charCodeAt(0))], { type: d.content_type || 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        window.open(url);
-      }
-    } catch (err) { setError(err.message); }
-  };
-
-  const handleDocumentDelete = async (docId) => {
-    if (!window.confirm('Delete this document?')) return;
-    try {
-      await api.uhpcms.deleteDocument(docId);
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
-    } catch (err) { setError(err.message); }
   };
 
   const handleEditSubmit = async (e) => {
@@ -249,33 +197,14 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
         )}
 
         {tab === 'documents' && (
-          <div className="card" style={{ marginBottom: '1.5rem' }}>
-            <h3 style={{ marginTop: 0 }}>Documents</h3>
-            <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Upload and view patient documents.</p>
-            <form onSubmit={handleDocumentUpload} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-              <input type="text" placeholder="Document name" value={docUploadName} onChange={(e) => setDocUploadName(e.target.value)} style={{ padding: '0.5rem', minWidth: 200 }} required />
-              <input type="file" onChange={(e) => setDocUploadFile(e.target.files?.[0] || null)} style={{ padding: '0.5rem' }} />
-              <button type="submit" className="btn-primary" disabled={docUploading}>{docUploading ? 'Uploading…' : 'Upload'}</button>
-            </form>
-            <div className="table-wrap">
-              <table className="table">
-                <thead><tr><th>Name</th><th>Type</th><th>Created</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {documents.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.name}</td>
-                      <td>{d.content_type}</td>
-                      <td>{d.created_at}</td>
-                      <td>
-                        <button type="button" className="btn" onClick={() => handleDocumentView(d.id)}>View</button>
-                        <button type="button" className="btn table-actions btn--danger" onClick={() => handleDocumentDelete(d.id)}>Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DocumentList
+            documents={documents}
+            onRefresh={(list) => setDocuments(list || [])}
+            uploadConfig={data?.patient?.mrn && currentOrgId ? { orgId: currentOrgId, patientMrn: data.patient.mrn } : null}
+            setError={setError}
+            title="Patient documents"
+            emptyMessage="No documents yet. Upload a file below."
+          />
         )}
 
         {tab === 'edit' && editForm && (

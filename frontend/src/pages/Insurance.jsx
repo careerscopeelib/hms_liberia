@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
+import DocumentList from '../components/DocumentList';
 
 export default function Insurance({ user, onLogout }) {
   const orgId = getEffectiveOrgId(user);
@@ -9,6 +10,9 @@ export default function Insurance({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ patient_mrn: '', provider_name: '', policy_number: '', coverage_details: '' });
+  const [docsForPolicyId, setDocsForPolicyId] = useState(null);
+  const [policyDocuments, setPolicyDocuments] = useState([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!orgId) return setLoading(false);
@@ -17,6 +21,13 @@ export default function Insurance({ user, onLogout }) {
       .catch(() => setList([]))
       .finally(() => setLoading(false));
   }, [orgId]);
+
+  useEffect(() => {
+    if (!docsForPolicyId || !orgId) return;
+    api.uhpcms.getDocuments({ org_id: orgId, entity_type: 'insurance', entity_id: docsForPolicyId })
+      .then((r) => setPolicyDocuments(r.data || []))
+      .catch(() => setPolicyDocuments([]));
+  }, [docsForPolicyId, orgId]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -47,8 +58,9 @@ export default function Insurance({ user, onLogout }) {
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Insurance Management</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-          Add and manage insurance policies.
+          Add and manage insurance policies. Attach policy documents (cards, certificates) per policy.
         </p>
+        {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         <div style={{ marginBottom: '1rem' }}>
           <button type="button" className="btn btn-primary" onClick={() => setModal(true)}>Add Insurance</button>
         </div>
@@ -62,6 +74,7 @@ export default function Insurance({ user, onLogout }) {
                     <th>Policy #</th>
                     <th>Patient MRN</th>
                     <th>Status</th>
+                    <th>Documents</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -72,6 +85,9 @@ export default function Insurance({ user, onLogout }) {
                       <td><code>{p.policy_number || '—'}</code></td>
                       <td>{p.patient_mrn || '—'}</td>
                       <td><span className="badge">{p.status}</span></td>
+                      <td>
+                        <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setDocsForPolicyId(docsForPolicyId === p.id ? null : p.id)}>Documents</button>
+                      </td>
                       <td><button type="button" className="btn btn--danger" onClick={() => handleDelete(p.id)}>Delete</button></td>
                     </tr>
                   ))}
@@ -80,6 +96,20 @@ export default function Insurance({ user, onLogout }) {
             </div>
           )}
         </div>
+
+        {docsForPolicyId && orgId && (
+          <div style={{ marginTop: '1rem' }}>
+            <DocumentList
+              documents={policyDocuments}
+              onRefresh={(list) => setPolicyDocuments(list || [])}
+              uploadConfig={{ orgId, entityType: 'insurance', entityId: docsForPolicyId }}
+              setError={setError}
+              title={`Policy documents — ${list.find((p) => p.id === docsForPolicyId)?.provider_name || docsForPolicyId}`}
+              emptyMessage="No documents. Upload policy card or certificate."
+            />
+            <button type="button" className="btn" style={{ marginTop: '0.5rem' }} onClick={() => setDocsForPolicyId(null)}>Close</button>
+          </div>
+        )}
       </div>
       {modal && (
         <div className="modal-overlay" onClick={() => setModal(false)}>

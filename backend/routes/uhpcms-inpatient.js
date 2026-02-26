@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -35,7 +35,7 @@ router.post('/admissions', audit('inpatient', 'admit'), async (req, res) => {
   try {
     const { encounter_id, ward_id, bed } = req.body || {};
     if (!encounter_id || !ward_id || !bed) return res.status(400).json({ ok: false, message: 'encounter_id, ward_id, bed required' });
-    const id = 'adm_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextPrefixedId('admissions', 'id', 'ADM-', null, null);
     const admittedBy = req.user?.sub || req.user?.id;
     await db.run(
       'INSERT INTO admissions (id, encounter_id, ward_id, bed, admitted_by) VALUES ($1, $2, $3, $4, $5)',

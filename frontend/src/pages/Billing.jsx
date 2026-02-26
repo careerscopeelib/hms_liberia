@@ -4,6 +4,7 @@ import Layout from '../Layout';
 import { api } from '../api';
 import { useCurrency } from '../context/CurrencyContext';
 import { getEffectiveOrgId } from '../utils/org';
+import DocumentList from '../components/DocumentList';
 
 const TABS = [
   { id: 'workflow', label: 'Add Bill / Workflow' },
@@ -32,6 +33,8 @@ export default function Billing({ user, onLogout }) {
   const [error, setError] = useState('');
   const [newCharge, setNewCharge] = useState({ service_code: '', description: '', amount: '', currency: 'USD' });
   const [newPayment, setNewPayment] = useState({ amount: '', currency: 'USD', invoice_id: '', method: 'cash', reference: '' });
+  const [docsForInvoiceId, setDocsForInvoiceId] = useState(null);
+  const [invoiceDocuments, setInvoiceDocuments] = useState([]);
 
   useEffect(() => {
     if (encounterIdFromUrl) setSelectedEnc(encounterIdFromUrl);
@@ -90,6 +93,13 @@ export default function Billing({ user, onLogout }) {
       loadInvoices().finally(() => setReportsLoading(false));
     }
   }, [activeTab, orgId]);
+
+  useEffect(() => {
+    if (!docsForInvoiceId || !orgId) return;
+    api.uhpcms.getDocuments({ org_id: orgId, entity_type: 'invoice', entity_id: docsForInvoiceId })
+      .then((r) => setInvoiceDocuments(r.data || []))
+      .catch(() => setInvoiceDocuments([]));
+  }, [docsForInvoiceId, orgId]);
 
   const handleAddCharge = async (e) => {
     e.preventDefault();
@@ -294,6 +304,8 @@ export default function Billing({ user, onLogout }) {
                           <strong>{inv.id}</strong> — {formatMoney(inv.total_amount, 'USD')} — {inv.status}
                           {' '}
                           <button type="button" className="btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.85rem' }} onClick={() => handlePrintInvoice(inv.id)}>Print / Download</button>
+                          {' '}
+                          <button type="button" className="btn" style={{ padding: '0.2rem 0.5rem', fontSize: '0.85rem' }} onClick={() => setDocsForInvoiceId(docsForInvoiceId === inv.id ? null : inv.id)}>Documents</button>
                         </li>
                       ))}
                     </ul>
@@ -347,7 +359,10 @@ export default function Billing({ user, onLogout }) {
                           <td className="money-usd">{formatMoney(i.total_amount, i.currency)}</td>
                           <td><span className="badge">{i.status}</span></td>
                           <td>{i.created_at}</td>
-                          <td><button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handlePrintInvoice(i.id)}>Print / Download</button></td>
+                          <td>
+                            <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', marginRight: '0.25rem' }} onClick={() => handlePrintInvoice(i.id)}>Print</button>
+                            <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setDocsForInvoiceId(docsForInvoiceId === i.id ? null : i.id)}>Documents</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -468,6 +483,20 @@ export default function Billing({ user, onLogout }) {
               )}
             </div>
           </section>
+        )}
+
+        {docsForInvoiceId && orgId && (
+          <div style={{ marginTop: '1rem' }}>
+            <DocumentList
+              documents={invoiceDocuments}
+              onRefresh={(list) => setInvoiceDocuments(list || [])}
+              uploadConfig={{ orgId, entityType: 'invoice', entityId: docsForInvoiceId }}
+              setError={setError}
+              title={`Invoice documents — ${docsForInvoiceId}`}
+              emptyMessage="No documents. Upload scanned invoice or receipt."
+            />
+            <button type="button" className="btn" style={{ marginTop: '0.5rem' }} onClick={() => setDocsForInvoiceId(null)}>Close</button>
+          </div>
         )}
 
         {error && <div className="login-error" style={{ marginTop: '1rem' }}>{error}</div>}

@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -37,8 +37,8 @@ router.post('/', orgContext, async (req, res) => {
     if (doctor_id == null || day_of_week == null || !start_time || !end_time) {
       return res.status(400).json({ ok: false, message: 'doctor_id, day_of_week, start_time, end_time required' });
     }
-    const id = 'sched_' + crypto.randomBytes(8).toString('hex');
     const orgId = req.orgId || req.body.org_id;
+    const id = await ids.getNextPrefixedId('doctor_schedules', 'id', 'SCHED-', 'org_id', orgId);
     await db.run(
       'INSERT INTO doctor_schedules (id, org_id, doctor_id, department_id, day_of_week, start_time, end_time) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, orgId, doctor_id, department_id || null, parseInt(day_of_week, 10), start_time, end_time]

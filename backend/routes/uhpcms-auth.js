@@ -6,6 +6,12 @@ const config = require('../config');
 
 const router = express.Router();
 
+function deriveRoleName(roleId) {
+  if (!roleId || typeof roleId !== 'string') return roleId;
+  const s = roleId.replace(/^role_/, '');
+  return s.replace(/_org_[a-zA-Z0-9_]+$/, '') || s || roleId;
+}
+
 // POST /api/uhpcms/auth/login - body: { email, password } or legacy { role, username, password }
 // Returns JWT and user context (org, role, permissions)
 router.post('/login', async (req, res) => {
@@ -47,23 +53,32 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ ok: false, message: 'Invalid credentials' });
     }
 
-    const orgActive = userRow.org_id
-      ? await db.get('SELECT status FROM organizations WHERE id = $1', [userRow.org_id])
-      : null;
+    let orgActive = null;
+    try {
+      if (userRow.org_id) {
+        orgActive = await db.get('SELECT status FROM organizations WHERE id = $1', [userRow.org_id]);
+      }
+    } catch (_) {}
     if (userRow.org_id && orgActive?.status === 'suspended') {
-      await db.run(
-        'INSERT INTO audit_log (user_id, org_id, module, action, payload) VALUES ($1, $2, $3, $4, $5)',
-        [userRow.id, userRow.org_id, 'auth', 'login_org_suspended', JSON.stringify({ email: userRow.email || userRow.username })]
-      ).catch(() => {});
+      try {
+        db.run(
+          'INSERT INTO audit_log (user_id, org_id, module, action, payload) VALUES ($1, $2, $3, $4, $5)',
+          [userRow.id, userRow.org_id, 'auth', 'login_org_suspended', JSON.stringify({ email: userRow.email || userRow.username })]
+        );
+      } catch (_) {}
       return res.status(403).json({ ok: false, message: 'Organization is suspended' });
     }
 
     const roleId = userRow.role_id || userRow.role;
     let roleName = roleId;
-    if (roleId && typeof roleId === 'string') {
-      const roleRow = await db.get('SELECT name FROM roles WHERE id = $1', [roleId]);
-      if (roleRow) roleName = roleRow.name;
-      else if (roleId.startsWith('role_')) roleName = roleId.replace(/^role_/, '').replace(/_org_.*$/, '') || roleId;
+    try {
+      if (roleId && typeof roleId === 'string') {
+        const roleRow = await db.get('SELECT name FROM roles WHERE id = $1', [roleId]);
+        if (roleRow) roleName = roleRow.name;
+        else roleName = deriveRoleName(roleId);
+      }
+    } catch (_) {
+      if (roleId && typeof roleId === 'string') roleName = deriveRoleName(roleId);
     }
     const payload = {
       sub: userRow.id,

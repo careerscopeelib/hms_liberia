@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -37,8 +37,8 @@ router.get('/rooms', orgContext, async (req, res) => {
 router.post('/rooms', orgContext, async (req, res) => {
   try {
     const { name } = req.body || {};
-    const id = 'room_' + crypto.randomBytes(8).toString('hex');
     const orgId = req.orgId || req.body.org_id;
+    const id = await ids.getNextPrefixedId('chat_rooms', 'id', 'ROOM-', 'org_id', orgId);
     await db.run('INSERT INTO chat_rooms (id, org_id, name) VALUES ($1, $2, $3)', [id, orgId, name || 'General']);
     await db.run('INSERT INTO chat_room_participants (room_id, user_id) VALUES ($1, $2)', [id, req.user?.id]);
     res.status(201).json({ ok: true, id });
@@ -80,7 +80,7 @@ router.post('/rooms/:roomId/messages', async (req, res) => {
     const { roomId } = req.params;
     const { body } = req.body || {};
     if (!body || !body.trim()) return res.status(400).json({ ok: false, message: 'body required' });
-    const id = 'msg_' + crypto.randomBytes(12).toString('hex');
+    const id = await ids.getNextPrefixedId('chat_messages', 'id', 'MSG-', null, null);
     await db.run(
       'INSERT INTO chat_messages (id, room_id, sender_id, body) VALUES ($1, $2, $3, $4)',
       [id, roomId, req.user?.id, body.trim()]

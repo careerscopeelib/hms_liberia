@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -35,8 +35,8 @@ router.post('/', orgContext, async (req, res) => {
   try {
     const { patient_mrn, provider_name, policy_number, coverage_details } = req.body || {};
     if (!provider_name) return res.status(400).json({ ok: false, message: 'provider_name required' });
-    const id = 'ins_' + crypto.randomBytes(8).toString('hex');
     const orgId = req.orgId || req.body.org_id;
+    const id = await ids.getNextInsuranceId(orgId);
     await db.run(
       'INSERT INTO insurance_policies (id, org_id, patient_mrn, provider_name, policy_number, coverage_details, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, orgId, patient_mrn || null, provider_name, policy_number || null, coverage_details || null, 'active']

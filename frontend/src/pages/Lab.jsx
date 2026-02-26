@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
+import DocumentList from '../components/DocumentList';
 
 const STATUS_OPTIONS = ['pending', 'sample_collected', 'processing', 'result_ready', 'cancelled'];
 
@@ -23,6 +24,8 @@ export default function Lab({ user, onLogout }) {
   const [resultUnit, setResultUnit] = useState('');
   const [statusUpdateId, setStatusUpdateId] = useState(null);
   const [statusUpdateVal, setStatusUpdateVal] = useState('');
+  const [docsForOrderId, setDocsForOrderId] = useState(null);
+  const [orderDocuments, setOrderDocuments] = useState([]);
 
   const orgId = getEffectiveOrgId(user);
 
@@ -38,6 +41,13 @@ export default function Lab({ user, onLogout }) {
   };
 
   useEffect(() => { load(); }, [orgId, filterStatus, filterEncounter]);
+
+  useEffect(() => {
+    if (!docsForOrderId || !orgId) return;
+    api.uhpcms.getDocuments({ org_id: orgId, entity_type: 'lab_order', entity_id: docsForOrderId })
+      .then((r) => setOrderDocuments(r.data || []))
+      .catch(() => setOrderDocuments([]));
+  }, [docsForOrderId, orgId]);
 
   const handleCreateOrder = async (e) => {
     e.preventDefault();
@@ -133,17 +143,23 @@ export default function Lab({ user, onLogout }) {
                   <th>Test</th>
                   <th>Status</th>
                   <th>Result</th>
+                  <th>Attachments</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? <tr><td colSpan={6}>Loading…</td></tr> : orders.length === 0 ? <tr><td colSpan={6}>No orders</td></tr> : orders.map((o) => (
+                {loading ? <tr><td colSpan={7}>Loading…</td></tr> : orders.length === 0 ? <tr><td colSpan={7}>No orders</td></tr> : orders.map((o) => (
                   <tr key={o.id}>
                     <td>{o.id}</td>
                     <td>{o.encounter_id}</td>
                     <td>{o.test_name} {o.test_code ? `(${o.test_code})` : ''}</td>
                     <td><span className="badge">{o.status}</span></td>
                     <td>{o.result_value != null ? `${o.result_value} ${o.result_unit || ''}` : '—'}</td>
+                    <td>
+                      <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setDocsForOrderId(docsForOrderId === o.id ? null : o.id)}>
+                        {docsForOrderId === o.id ? 'Hide' : 'Attachments'}
+                      </button>
+                    </td>
                     <td>
                       {statusUpdateId === o.id ? (
                         <span style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
@@ -173,6 +189,20 @@ export default function Lab({ user, onLogout }) {
             </table>
           </div>
         </div>
+
+        {docsForOrderId && orgId && (
+          <div style={{ marginTop: '1rem' }}>
+            <DocumentList
+              documents={orderDocuments}
+              onRefresh={(list) => setOrderDocuments(list || [])}
+              uploadConfig={{ orgId, entityType: 'lab_order', entityId: docsForOrderId }}
+              setError={setError}
+              title={`Attachments — Order ${docsForOrderId}`}
+              emptyMessage="No attachments. Upload result files or reports."
+            />
+            <button type="button" className="btn" style={{ marginTop: '0.5rem' }} onClick={() => setDocsForOrderId(null)}>Close attachments</button>
+          </div>
+        )}
       </div>
     </Layout>
   );

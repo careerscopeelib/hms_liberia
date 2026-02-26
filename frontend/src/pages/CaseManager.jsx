@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
+import DocumentList from '../components/DocumentList';
 
 export default function CaseManager({ user, onLogout }) {
   const orgId = getEffectiveOrgId(user);
@@ -9,6 +10,9 @@ export default function CaseManager({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ patient_mrn: '', doctor_id: '', case_type: '', notes: '' });
+  const [docsForCaseId, setDocsForCaseId] = useState(null);
+  const [caseDocuments, setCaseDocuments] = useState([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!orgId) return setLoading(false);
@@ -17,6 +21,13 @@ export default function CaseManager({ user, onLogout }) {
       .catch(() => setList([]))
       .finally(() => setLoading(false));
   }, [orgId]);
+
+  useEffect(() => {
+    if (!docsForCaseId || !orgId) return;
+    api.uhpcms.getDocuments({ org_id: orgId, entity_type: 'case', entity_id: docsForCaseId })
+      .then((r) => setCaseDocuments(r.data || []))
+      .catch(() => setCaseDocuments([]));
+  }, [docsForCaseId, orgId]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -46,8 +57,9 @@ export default function CaseManager({ user, onLogout }) {
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Case Manager</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-          Add and manage patient cases.
+          Add and manage patient cases. Attach documents (referrals, reports) per case.
         </p>
+        {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         <div style={{ marginBottom: '1rem' }}>
           <button type="button" className="btn btn-primary" onClick={() => setModal(true)}>Add Case</button>
         </div>
@@ -62,6 +74,7 @@ export default function CaseManager({ user, onLogout }) {
                     <th>Type</th>
                     <th>Status</th>
                     <th>Created</th>
+                    <th>Documents</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -73,6 +86,9 @@ export default function CaseManager({ user, onLogout }) {
                       <td>{c.case_type || '—'}</td>
                       <td><span className="badge">{c.status}</span></td>
                       <td>{c.created_at}</td>
+                      <td>
+                        <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setDocsForCaseId(docsForCaseId === c.id ? null : c.id)}>Documents</button>
+                      </td>
                       <td className="table-actions">
                         {c.status !== 'closed' && (
                           <button type="button" className="btn" onClick={() => setStatus(c.id, 'in_progress')}>In progress</button>
@@ -88,6 +104,20 @@ export default function CaseManager({ user, onLogout }) {
             </div>
           )}
         </div>
+
+        {docsForCaseId && orgId && (
+          <div style={{ marginTop: '1rem' }}>
+            <DocumentList
+              documents={caseDocuments}
+              onRefresh={(list) => setCaseDocuments(list || [])}
+              uploadConfig={{ orgId, entityType: 'case', entityId: docsForCaseId }}
+              setError={setError}
+              title={`Case documents — ${list.find((c) => c.id === docsForCaseId)?.case_type || docsForCaseId}`}
+              emptyMessage="No documents. Upload referrals or reports."
+            />
+            <button type="button" className="btn" style={{ marginTop: '0.5rem' }} onClick={() => setDocsForCaseId(null)}>Close</button>
+          </div>
+        )}
       </div>
       {modal && (
         <div className="modal-overlay" onClick={() => setModal(false)}>

@@ -4,7 +4,7 @@ const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -68,7 +68,7 @@ router.post('/departments', orgContext, audit('org_admin', 'create_department'),
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
     const orgId = req.orgId || req.body.org_id;
-    const id = 'dept_' + crypto.randomBytes(6).toString('hex');
+    const id = await ids.getNextPrefixedId('departments', 'id', 'DEPT-', 'org_id', orgId);
     await db.run('INSERT INTO departments (id, org_id, name) VALUES ($1, $2, $3)', [id, orgId, name]);
     res.status(201).json({ ok: true, id });
   } catch (e) {
@@ -92,7 +92,7 @@ router.post('/wards', orgContext, audit('org_admin', 'create_ward'), async (req,
     const { name, bed_count } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
     const orgId = req.orgId || req.body.org_id;
-    const id = 'ward_' + crypto.randomBytes(6).toString('hex');
+    const id = await ids.getNextPrefixedId('wards', 'id', 'WARD-', 'org_id', orgId);
     await db.run('INSERT INTO wards (id, org_id, name, bed_count) VALUES ($1, $2, $3, $4)', [id, orgId, name, bed_count || 0]);
     res.status(201).json({ ok: true, id });
   } catch (e) {
@@ -116,7 +116,7 @@ router.post('/pharmacy-stores', orgContext, audit('org_admin', 'create_store'), 
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
     const orgId = req.orgId || req.body.org_id;
-    const id = 'store_' + crypto.randomBytes(6).toString('hex');
+    const id = await ids.getNextPrefixedId('pharmacy_stores', 'id', 'STORE-', 'org_id', orgId);
     await db.run('INSERT INTO pharmacy_stores (id, org_id, name) VALUES ($1, $2, $3)', [id, orgId, name]);
     res.status(201).json({ ok: true, id });
   } catch (e) {
@@ -140,7 +140,7 @@ router.post('/services', orgContext, audit('org_admin', 'create_service'), async
     const { code, name, default_amount, default_currency } = req.body || {};
     if (!code || !name) return res.status(400).json({ ok: false, message: 'code and name required' });
     const orgId = req.orgId || req.body.org_id;
-    const id = 'svc_' + crypto.randomBytes(6).toString('hex');
+    const id = await ids.getNextPrefixedId('services', 'id', 'SVC-', 'org_id', orgId);
     await db.run(
       'INSERT INTO services (id, org_id, code, name, default_amount, default_currency) VALUES ($1, $2, $3, $4, $5, $6)',
       [id, orgId, code, name, default_amount != null ? Number(default_amount) : null, default_currency || 'USD']
@@ -174,13 +174,52 @@ router.post('/users', orgContext, audit('org_admin', 'create_user'), async (req,
     if (!email || !password) return res.status(400).json({ ok: false, message: 'email and password required' });
     const orgId = req.orgId || req.body.org_id;
     const defaultRoleId = `role_org_admin_${orgId}`;
-    const id = 'usr_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextUserId();
     const hash = await bcrypt.hash(password, 10);
     await db.run(
       'INSERT INTO system_users (id, org_id, email, password_hash, role_id, department_id, full_name, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
       [id, orgId, email, hash, role_id || defaultRoleId, department_id || null, full_name || null, 'active']
     );
     res.status(201).json({ ok: true, id });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: e.message });
+  }
+});
+
+// PATCH /api/uhpcms/org-admin/users/:id - update user (same org)
+router.patch('/users/:id', orgContext, audit('org_admin', 'update_user'), async (req, res) => {
+  try {
+    const orgId = req.orgId || req.query.org_id;
+    const { id } = req.params;
+    const { email, full_name, role_id, department_id, status, password } = req.body || {};
+    const existing = await db.get('SELECT id, org_id FROM system_users WHERE id = $1 AND org_id = $2', [id, orgId]);
+    if (!existing) return res.status(404).json({ ok: false, message: 'User not found' });
+    if (email != null) await db.run('UPDATE system_users SET email = $1 WHERE id = $2', [email.trim(), id]);
+    if (full_name != null) await db.run('UPDATE system_users SET full_name = $1 WHERE id = $2', [full_name || null, id]);
+    if (role_id != null) await db.run('UPDATE system_users SET role_id = $1 WHERE id = $2', [role_id, id]);
+    if (department_id !== undefined) await db.run('UPDATE system_users SET department_id = $1 WHERE id = $2', [department_id || null, id]);
+    if (status != null && ['active', 'inactive', 'suspended'].includes(status)) {
+      await db.run('UPDATE system_users SET status = $1 WHERE id = $2', [status, id]);
+    }
+    if (password != null && String(password).length >= 6) {
+      const hash = await bcrypt.hash(password, 10);
+      await db.run('UPDATE system_users SET password_hash = $1 WHERE id = $2', [hash, id]);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: e.message });
+  }
+});
+
+// DELETE /api/uhpcms/org-admin/users/:id - deactivate user (same org)
+router.delete('/users/:id', orgContext, audit('org_admin', 'delete_user'), async (req, res) => {
+  try {
+    const orgId = req.orgId || req.query.org_id;
+    const { id } = req.params;
+    const existing = await db.get('SELECT id FROM system_users WHERE id = $1 AND org_id = $2', [id, orgId]);
+    if (!existing) return res.status(404).json({ ok: false, message: 'User not found' });
+    await db.run('UPDATE system_users SET status = $1 WHERE id = $2', ['inactive', id]);
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ ok: false, message: e.message });
   }

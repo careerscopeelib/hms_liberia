@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -30,7 +30,9 @@ router.post('/', audit('lab', 'order'), async (req, res) => {
   try {
     const { encounter_id, test_name, test_code } = req.body || {};
     if (!encounter_id || !test_name) return res.status(400).json({ ok: false, message: 'encounter_id and test_name required' });
-    const id = 'lab_' + crypto.randomBytes(8).toString('hex');
+    const enc = await db.get('SELECT org_id FROM encounters WHERE id = $1', [encounter_id]);
+    if (!enc) return res.status(400).json({ ok: false, message: 'Encounter not found' });
+    const id = await ids.getNextLabOrderId(enc.org_id);
     const orderedBy = req.user?.sub || req.user?.id;
     await db.run(
       'INSERT INTO lab_orders (id, encounter_id, ordered_by, test_name, test_code, status) VALUES ($1, $2, $3, $4, $5, $6)',

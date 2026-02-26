@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
-const crypto = require('crypto');
+const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -32,7 +32,7 @@ router.post('/appointments', audit('clinic', 'create_appointment'), async (req, 
   try {
     const { org_id, patient_mrn, department_id, doctor_id, scheduled_at } = req.body || {};
     if (!org_id || !patient_mrn || !scheduled_at) return res.status(400).json({ ok: false, message: 'org_id, patient_mrn, scheduled_at required' });
-    const id = 'apt_' + crypto.randomBytes(8).toString('hex');
+    const id = await ids.getNextAppointmentId(org_id);
     await db.run(
       'INSERT INTO appointments (id, org_id, patient_mrn, department_id, doctor_id, scheduled_at, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [id, org_id, patient_mrn, department_id || null, doctor_id || null, scheduled_at, 'scheduled']

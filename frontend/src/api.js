@@ -66,8 +66,14 @@ export const api = {
     getOrganizations: () => request('/api/uhpcms/governance/organizations', {}, true),
     createOrganization: (body) =>
       request('/api/uhpcms/governance/organizations', { method: 'POST', body: JSON.stringify(body) }, true),
+    getOrganization: (id) =>
+      request(`/api/uhpcms/governance/organizations/${id}`, {}, true),
     patchOrganization: (id, body) =>
       request(`/api/uhpcms/governance/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    updateOrganization: (id, body) =>
+      request(`/api/uhpcms/governance/organizations/${id}`, { method: 'PUT', body: JSON.stringify(body) }, true),
+    deleteOrganization: (id) =>
+      request(`/api/uhpcms/governance/organizations/${id}`, { method: 'DELETE' }, true),
     getOrgModules: (orgId) =>
       request(`/api/uhpcms/governance/organizations/${orgId}/modules`, {}, true),
     setOrgModules: (orgId, modules) =>
@@ -109,6 +115,14 @@ export const api = {
     setOrgAddons: (orgId, addons) =>
       request(`/api/uhpcms/governance/organizations/${orgId}/addons`, { method: 'PUT', body: JSON.stringify({ addons }) }, true),
 
+    getGovernanceUsers: (orgId) =>
+      request(`/api/uhpcms/governance/users${orgId ? `?org_id=${encodeURIComponent(orgId)}` : ''}`, {}, true),
+    getGovernanceUser: (id) =>
+      request(`/api/uhpcms/governance/users/${id}`, {}, true),
+    updateGovernanceUser: (id, body) =>
+      request(`/api/uhpcms/governance/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, true),
+    deleteGovernanceUser: (id) =>
+      request(`/api/uhpcms/governance/users/${id}`, { method: 'DELETE' }, true),
     getPatients: (params) =>
       request(`/api/uhpcms/patients?${new URLSearchParams(params || {}).toString()}`, {}, true),
     getPatientFullRecord: (id) =>
@@ -150,6 +164,10 @@ export const api = {
       request('/api/uhpcms/org-admin/services', { method: 'POST', body: JSON.stringify(body) }, true),
     createUser: (body) =>
       request('/api/uhpcms/org-admin/users', { method: 'POST', body: JSON.stringify(body) }, true),
+    updateUser: (orgId, userId, body) =>
+      request(`/api/uhpcms/org-admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ ...body, ...(orgId ? { org_id: orgId } : {}) }) }, true),
+    deleteUser: (orgId, userId) =>
+      request(`/api/uhpcms/org-admin/users/${userId}${orgId ? `?org_id=${encodeURIComponent(orgId)}` : ''}`, { method: 'DELETE' }, true),
 
     getTriage: (encounterId) =>
       request(`/api/uhpcms/triage/${encounterId}`, {}, true),
@@ -275,6 +293,14 @@ export const api = {
       request(`/api/uhpcms/documents?${new URLSearchParams(params || {}).toString()}`, {}, true),
     getDocument: (id) =>
       request(`/api/uhpcms/documents/${id}`, {}, true),
+    downloadDocument: async (id) => {
+      const token = getToken();
+      const base = (() => { const e = import.meta.env.VITE_API_URL; if (e && typeof e === 'string') return e.replace(/\/$/, ''); if (typeof window !== 'undefined' && window.location?.hostname?.endsWith('.onrender.com')) return `${window.location.protocol}//${window.location.hostname.replace('.onrender.com', '-api.onrender.com')}`; return ''; })();
+      const url = base ? `${base}/api/uhpcms/documents/${id}/download` : `/api/uhpcms/documents/${id}/download`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.message || 'Download failed'); }
+      return await res.blob();
+    },
     uploadDocument: (body) =>
       request('/api/uhpcms/documents', { method: 'POST', body: JSON.stringify(body) }, true),
     deleteDocument: (id) =>

@@ -20,6 +20,15 @@ export default function Governance({ user, onLogout }) {
   const [orgAddons, setOrgAddons] = useState([]);
   const [orgStatus, setOrgStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editOrg, setEditOrg] = useState(null);
+  const [editOrgForm, setEditOrgForm] = useState({ name: '', type: 'hospital', subscription_plan: 'standard' });
+  const [deleteOrgId, setDeleteOrgId] = useState(null);
+  const [governanceUsers, setGovernanceUsers] = useState([]);
+  const [governanceUsersOrgFilter, setGovernanceUsersOrgFilter] = useState('');
+  const [editUser, setEditUser] = useState(null);
+  const [editUserForm, setEditUserForm] = useState({ email: '', full_name: '', role_id: '', status: 'active', password: '' });
+  const [savingUser, setSavingUser] = useState(false);
+  const [editUserRoles, setEditUserRoles] = useState([]);
 
   useEffect(() => {
     api.uhpcms.getOrganizations()
@@ -35,6 +44,18 @@ export default function Governance({ user, onLogout }) {
     api.uhpcms.getOrgModules(manageOrgId).then((r) => setOrgModules(r.data || [])).catch(() => []);
     api.uhpcms.getOrgAddons(manageOrgId).then((r) => setOrgAddons(r.data || [])).catch(() => []);
   }, [manageOrgId, organizations]);
+
+  const loadGovernanceUsers = () => {
+    api.uhpcms.getGovernanceUsers(governanceUsersOrgFilter || undefined)
+      .then((r) => setGovernanceUsers(r.data || []))
+      .catch(() => setGovernanceUsers([]));
+  };
+  useEffect(() => { loadGovernanceUsers(); }, [governanceUsersOrgFilter]);
+
+  useEffect(() => {
+    if (!editUser?.org_id) { setEditUserRoles([]); return; }
+    api.uhpcms.getRoles(editUser.org_id).then((r) => setEditUserRoles(r.data || [])).catch(() => setEditUserRoles([]));
+  }, [editUser?.id, editUser?.org_id]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -123,6 +144,71 @@ export default function Governance({ user, onLogout }) {
     }
   };
 
+  const openEditOrg = (org) => {
+    setEditOrg(org);
+    setEditOrgForm({ name: org.name, type: org.type, subscription_plan: org.subscription_plan || 'standard' });
+  };
+  const saveEditOrg = async () => {
+    if (!editOrg) return;
+    setError('');
+    try {
+      await api.uhpcms.updateOrganization(editOrg.id, editOrgForm);
+      const r = await api.uhpcms.getOrganizations();
+      setOrganizations(r.data || []);
+      setEditOrg(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const confirmDeleteOrg = async () => {
+    if (!deleteOrgId) return;
+    setError('');
+    try {
+      await api.uhpcms.deleteOrganization(deleteOrgId);
+      const r = await api.uhpcms.getOrganizations();
+      setOrganizations(r.data || []);
+      setManageOrgId((id) => id === deleteOrgId ? null : id);
+      setDeleteOrgId(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const openEditUser = (u) => {
+    setEditUser(u);
+    setEditUserForm({ email: u.email, full_name: u.full_name || '', role_id: u.role_id || '', status: u.status || 'active', password: '' });
+  };
+  const saveEditUser = async () => {
+    if (!editUser) return;
+    setSavingUser(true);
+    setError('');
+    try {
+      await api.uhpcms.updateGovernanceUser(editUser.id, {
+        email: editUserForm.email,
+        full_name: editUserForm.full_name || null,
+        role_id: editUserForm.role_id || null,
+        status: editUserForm.status,
+        ...(editUserForm.password ? { password: editUserForm.password } : {}),
+      });
+      loadGovernanceUsers();
+      setEditUser(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSavingUser(false);
+    }
+  };
+  const deleteGovernanceUserConfirm = async (id) => {
+    if (!window.confirm('Deactivate this user? They will no longer be able to log in.')) return;
+    setError('');
+    try {
+      await api.uhpcms.deleteGovernanceUser(id);
+      loadGovernanceUsers();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   const toggleModule = (name) => setModuleToggles((prev) => ({ ...prev, [name]: prev[name] ? 0 : 1 }));
   const toggleAddon = (name) => setAddonToggles((prev) => ({ ...prev, [name]: prev[name] ? 0 : 1 }));
 
@@ -186,9 +272,11 @@ export default function Governance({ user, onLogout }) {
                       <td>{org.status}</td>
                       <td>{org.subscription_plan}</td>
                       <td>
-                        <button type="button" className="btn-primary" style={{ padding: '0.35rem 0.75rem' }} onClick={() => setManageOrgId(manageOrgId === org.id ? null : org.id)}>
+                        <button type="button" className="btn-primary" style={{ padding: '0.35rem 0.75rem', marginRight: '0.35rem' }} onClick={() => setManageOrgId(manageOrgId === org.id ? null : org.id)}>
                           {manageOrgId === org.id ? 'Close' : 'Manage'}
                         </button>
+                        <button type="button" className="btn" style={{ padding: '0.35rem 0.75rem', marginRight: '0.35rem' }} onClick={() => openEditOrg(org)}>Edit</button>
+                        <button type="button" className="btn" style={{ padding: '0.35rem 0.75rem', color: 'var(--color-danger, #c00)' }} onClick={() => setDeleteOrgId(org.id)}>Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -238,6 +326,98 @@ export default function Governance({ user, onLogout }) {
                 ))}
                 <button type="button" className="btn-primary" disabled={saving} onClick={handleSaveAddons} style={{ marginLeft: '0.5rem' }}>Save add-ons</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {editOrg && (
+          <div className="card card-interactive" style={{ marginTop: '1.5rem' }}>
+            <div className="card-body">
+              <h3 style={{ marginTop: 0 }}>Edit organization</h3>
+              <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 400, marginBottom: '1rem' }}>
+                <label>Name <input type="text" className="login-form input" style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editOrgForm.name} onChange={(e) => setEditOrgForm((f) => ({ ...f, name: e.target.value }))} /></label>
+                <label>Type <select style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editOrgForm.type} onChange={(e) => setEditOrgForm((f) => ({ ...f, type: e.target.value }))}>{ORG_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
+                <label>Plan <input type="text" className="login-form input" style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editOrgForm.subscription_plan} onChange={(e) => setEditOrgForm((f) => ({ ...f, subscription_plan: e.target.value }))} /></label>
+              </div>
+              <button type="button" className="btn-primary" onClick={saveEditOrg}>Save</button>
+              <button type="button" className="btn" style={{ marginLeft: '0.5rem' }} onClick={() => setEditOrg(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {deleteOrgId && (
+          <div className="card card-interactive" style={{ marginTop: '1.5rem', borderColor: 'var(--color-danger, #c00)' }}>
+            <div className="card-body">
+              <h3 style={{ marginTop: 0 }}>Delete organization?</h3>
+              <p>This will remove &quot;{organizations.find((o) => o.id === deleteOrgId)?.name}&quot; and its modules/addons/roles. Users must be removed first.</p>
+              <button type="button" className="btn" style={{ color: 'var(--color-danger, #c00)' }} onClick={confirmDeleteOrg}>Confirm delete</button>
+              <button type="button" className="btn" style={{ marginLeft: '0.5rem' }} onClick={() => setDeleteOrgId(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        <h3 className="section-title" style={{ marginTop: '2rem' }}>System users</h3>
+        <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>View, edit, or deactivate users across organizations.</p>
+        <div style={{ marginBottom: '1rem' }}>
+          <label>Filter by organization </label>
+          <select value={governanceUsersOrgFilter} onChange={(e) => setGovernanceUsersOrgFilter(e.target.value)} style={{ padding: '0.5rem', marginLeft: '0.5rem' }}>
+            <option value="">All</option>
+            {organizations.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          <button type="button" className="btn" style={{ marginLeft: '0.5rem' }} onClick={loadGovernanceUsers}>Refresh</button>
+        </div>
+        <div className="card">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Full name</th>
+                  <th>Organization</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {governanceUsers.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.email}</td>
+                    <td>{u.full_name || '—'}</td>
+                    <td>{organizations.find((o) => o.id === u.org_id)?.name || u.org_id}</td>
+                    <td>{u.role_name === 'accountant' ? 'Finance Manager' : (u.role_name || u.role_id || '—').replace(/_/g, ' ')}</td>
+                    <td>{u.status}</td>
+                    <td>
+                      <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', marginRight: '0.25rem' }} onClick={() => openEditUser(u)}>Edit</button>
+                      <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', color: 'var(--color-danger, #c00)' }} onClick={() => deleteGovernanceUserConfirm(u.id)}>Deactivate</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {editUser && (
+          <div className="card card-interactive" style={{ marginTop: '1.5rem' }}>
+            <div className="card-body">
+              <h3 style={{ marginTop: 0 }}>Edit user</h3>
+              <div style={{ display: 'grid', gap: '0.75rem', maxWidth: 400, marginBottom: '1rem' }}>
+                <label>Email <input type="email" className="login-form input" style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editUserForm.email} onChange={(e) => setEditUserForm((f) => ({ ...f, email: e.target.value }))} /></label>
+                <label>Full name <input type="text" className="login-form input" style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editUserForm.full_name} onChange={(e) => setEditUserForm((f) => ({ ...f, full_name: e.target.value }))} /></label>
+                <label>Role <select style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editUserForm.role_id} onChange={(e) => setEditUserForm((f) => ({ ...f, role_id: e.target.value }))}>
+                  <option value="">—</option>
+                  {editUserRoles.map((r) => <option key={r.id} value={r.id}>{r.name === 'accountant' ? 'Finance Manager (Accountant)' : (r.name || r.id).replace(/_/g, ' ')}</option>)}
+                </select></label>
+                <label>Status <select style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editUserForm.status} onChange={(e) => setEditUserForm((f) => ({ ...f, status: e.target.value }))}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="suspended">Suspended</option>
+                </select></label>
+                <label>New password (leave blank to keep) <input type="password" className="login-form input" style={{ width: '100%', padding: '0.5rem 0.75rem' }} value={editUserForm.password} onChange={(e) => setEditUserForm((f) => ({ ...f, password: e.target.value }))} placeholder="Min 6 characters" /></label>
+              </div>
+              <button type="button" className="btn-primary" disabled={savingUser} onClick={saveEditUser}>Save</button>
+              <button type="button" className="btn" style={{ marginLeft: '0.5rem' }} onClick={() => setEditUser(null)}>Cancel</button>
             </div>
           </div>
         )}
