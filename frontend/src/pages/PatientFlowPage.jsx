@@ -36,30 +36,44 @@ export default function PatientFlowPage({ user, onLogout }) {
   const [labTestName, setLabTestName] = useState('');
   const [labTestCode, setLabTestCode] = useState('');
   const [rxItems, setRxItems] = useState([{ drug_id: '', quantity: 1, dosage: '', duration: '' }]);
+  const [patientFlowBlocked, setPatientFlowBlocked] = useState(false);
+  const [pharmacyBlocked, setPharmacyBlocked] = useState(false);
 
   const currentOrgId = getEffectiveOrgId(user);
   const enabledModules = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
   const hasExplicitModules = enabledModules.length > 0;
   const canUsePatientFlow = !hasExplicitModules || enabledModules.includes('hospital') || enabledModules.includes('clinic');
   const canUsePharmacy = !hasExplicitModules || enabledModules.includes('pharmacy');
+  const shouldAllowPatientFlow = canUsePatientFlow && !patientFlowBlocked;
+  const shouldAllowPharmacy = canUsePharmacy && !pharmacyBlocked;
+
+  const isFeature403 = (err) => {
+    const msg = (err?.message || '').toLowerCase();
+    return msg.includes('403') || msg.includes('feature is not enabled') || msg.includes('not enabled for your organization');
+  };
 
   const loadDataForOrg = (orgId) => {
     if (!orgId) return;
-    if (!canUsePatientFlow) return;
+    if (!shouldAllowPatientFlow) return;
     setLoading(true);
     Promise.all([
-      api.uhpcms.getPatients({ org_id: orgId }).then((r) => r.data || []).catch(() => []),
-      api.uhpcms.getEncounters({ org_id: orgId }).then((r) => r.data || []).catch(() => []),
-      api.uhpcms.getDepartments(orgId).then((r) => r.data || []).catch(() => []),
-      api.uhpcms.getNextMrn(orgId).then((r) => r.mrn).catch(() => 'MRN001'),
-      canUsePharmacy ? api.uhpcms.getDrugs(orgId).then((r) => r.data || []).catch(() => []) : Promise.resolve([]),
-    ]).then(([p, e, d, m, dr]) => {
+      api.uhpcms.getPatients({ org_id: orgId }).then((r) => r.data || []),
+      api.uhpcms.getEncounters({ org_id: orgId }).then((r) => r.data || []),
+      api.uhpcms.getDepartments(orgId).then((r) => r.data || []),
+      api.uhpcms.getNextMrn(orgId).then((r) => r.mrn),
+    ]).then(([p, e, d, m]) => {
       setPatients(p);
       setEncounters(e);
       setDepartments(d);
       setNextMrn(m);
-      setDrugs(dr);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => {
+      if (isFeature403(err)) {
+        setPatientFlowBlocked(true);
+        setError('This feature is not enabled for your organization. Enable hospital/clinic module in Governance.');
+      } else {
+        setError(err?.message || 'Failed to load patient flow data.');
+      }
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -68,19 +82,36 @@ export default function PatientFlowPage({ user, onLogout }) {
 
   useEffect(() => {
     loadDataForOrg(currentOrgId);
-  }, [currentOrgId]);
+  }, [currentOrgId, shouldAllowPatientFlow]);
+
+  useEffect(() => {
+    if (!currentOrgId || !shouldAllowPatientFlow || !shouldAllowPharmacy) return;
+    api.uhpcms.getDrugs(currentOrgId)
+      .then((r) => setDrugs(r.data || []))
+      .catch((err) => {
+        if (isFeature403(err)) {
+          setPharmacyBlocked(true);
+          setDrugs([]);
+        }
+      });
+  }, [currentOrgId, shouldAllowPatientFlow, shouldAllowPharmacy]);
 
   const handleSearchPatient = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
-    if (!currentOrgId || !searchMrn.trim()) return;
+    if (!currentOrgId || !searchMrn.trim() || !shouldAllowPatientFlow) return;
     try {
       const r = await api.uhpcms.searchPatient({ org_id: currentOrgId, mrn: searchMrn.trim() });
       setSearchResult(r.data || null);
       if (r.data) setRegistered(r.data.mrn);
     } catch (err) {
-      setError(err.message);
+      if (isFeature403(err)) {
+        setPatientFlowBlocked(true);
+        setError('This feature is not enabled for your organization. Enable hospital/clinic module in Governance.');
+      } else {
+        setError(err.message);
+      }
       setSearchResult(null);
     }
   };
@@ -88,6 +119,7 @@ export default function PatientFlowPage({ user, onLogout }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
+    if (!shouldAllowPatientFlow) return;
     try {
       await api.uhpcms.registerPatient({
         org_id: currentOrgId,
@@ -102,13 +134,19 @@ export default function PatientFlowPage({ user, onLogout }) {
       const r = await api.uhpcms.getPatients({ org_id: currentOrgId });
       setPatients(r.data || []);
     } catch (err) {
-      setError(err.message);
+      if (isFeature403(err)) {
+        setPatientFlowBlocked(true);
+        setError('This feature is not enabled for your organization. Enable hospital/clinic module in Governance.');
+      } else {
+        setError(err.message);
+      }
     }
   };
 
   const handleCreateEncounter = async (e) => {
     e.preventDefault();
     setError('');
+    if (!shouldAllowPatientFlow) return;
     try {
       const r = await api.uhpcms.createEncounter({
         org_id: currentOrgId,
@@ -119,13 +157,18 @@ export default function PatientFlowPage({ user, onLogout }) {
       const e2 = await api.uhpcms.getEncounters({ org_id: currentOrgId });
       setEncounters(e2.data || []);
     } catch (err) {
-      setError(err.message);
+      if (isFeature403(err)) {
+        setPatientFlowBlocked(true);
+        setError('This feature is not enabled for your organization. Enable hospital/clinic module in Governance.');
+      } else {
+        setError(err.message);
+      }
     }
   };
 
   const handleSaveTriage = async (e) => {
     e.preventDefault();
-    if (!encounterId) return;
+    if (!encounterId || !shouldAllowPatientFlow) return;
     setError('');
     setSuccessMsg('');
     try {
@@ -139,7 +182,7 @@ export default function PatientFlowPage({ user, onLogout }) {
 
   const handleSaveConsultation = async (e) => {
     e.preventDefault();
-    if (!encounterId) return;
+    if (!encounterId || !shouldAllowPatientFlow) return;
     setError('');
     setSuccessMsg('');
     try {
@@ -153,7 +196,7 @@ export default function PatientFlowPage({ user, onLogout }) {
 
   const handleOrderLab = async (e) => {
     e.preventDefault();
-    if (!encounterId || !labTestName) return;
+    if (!encounterId || !labTestName || !shouldAllowPatientFlow) return;
     setError('');
     setSuccessMsg('');
     try {
@@ -171,7 +214,7 @@ export default function PatientFlowPage({ user, onLogout }) {
   const handleOrderPrescription = async (e) => {
     e.preventDefault();
     const items = rxItems.filter((it) => it.drug_id).map((it) => ({ drug_id: it.drug_id, quantity: Number(it.quantity) || 1, dosage: it.dosage || undefined, duration: it.duration || undefined }));
-    if (!encounterId || items.length === 0) return;
+    if (!encounterId || items.length === 0 || !shouldAllowPharmacy) return;
     setError('');
     setSuccessMsg('');
     try {
@@ -185,7 +228,7 @@ export default function PatientFlowPage({ user, onLogout }) {
   const goToBilling = () => navigate(encounterId ? `/billing?encounter_id=${encounterId}` : '/billing');
 
   const handleCloseEncounter = async () => {
-    if (!encounterId) return;
+    if (!encounterId || !shouldAllowPatientFlow) return;
     setError('');
     try {
       const payload = { status: 'discharged' };
@@ -205,6 +248,7 @@ export default function PatientFlowPage({ user, onLogout }) {
         <h2 className="section-title">Patient flow</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Registration → Triage → Consultation → Lab → Pharmacy → Billing</p>
         {!canUsePatientFlow && <p className="login-error" style={{ marginBottom: '1rem' }}>Patient flow module is not enabled for your account/organization.</p>}
+        {patientFlowBlocked && <p className="login-error" style={{ marginBottom: '1rem' }}>Backend rejected patient-flow access (403). Ask admin to enable hospital/clinic for this organization.</p>}
         <div className="flow-step" style={{ flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem', display: 'flex' }}>
           {STEPS.map((s) => (
             <button key={s.id} type="button" className={`btn ${step === s.id ? 'btn-primary' : ''}`} style={step === s.id ? {} : { background: 'var(--color-bg)', color: 'var(--color-text)' }} onClick={() => { setStep(s.id); setError(''); setSuccessMsg(''); }}>{s.label}</button>
@@ -213,7 +257,7 @@ export default function PatientFlowPage({ user, onLogout }) {
         {!currentOrgId && <p className="login-error" style={{ marginBottom: '1rem' }}>Hospital is not configured yet.</p>}
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         {successMsg && <div className="login-success" style={{ marginBottom: '1rem' }}>{successMsg}</div>}
-        {canUsePatientFlow && step === 'register' && (
+        {shouldAllowPatientFlow && step === 'register' && (
           <div className="card card-interactive">
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Patient registration</h3>
@@ -252,7 +296,7 @@ export default function PatientFlowPage({ user, onLogout }) {
             </div>
           </div>
         )}
-        {canUsePatientFlow && step === 'triage' && (
+        {shouldAllowPatientFlow && step === 'triage' && (
           <div className="card card-interactive">
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Triage</h3>
@@ -269,7 +313,7 @@ export default function PatientFlowPage({ user, onLogout }) {
             </div>
           </div>
         )}
-        {canUsePatientFlow && step === 'consultation' && (
+        {shouldAllowPatientFlow && step === 'consultation' && (
           <div className="card card-interactive">
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Consultation (SOAP)</h3>
@@ -289,6 +333,7 @@ export default function PatientFlowPage({ user, onLogout }) {
                 <button type="submit" className="btn-primary" disabled={!encounterId}>Order lab</button>
               </form>
               <h4 style={{ marginTop: '0.5rem' }}>Order prescription</h4>
+              {!shouldAllowPharmacy && <p className="login-error" style={{ marginBottom: '0.5rem' }}>Pharmacy module is not enabled for this organization.</p>}
               <form onSubmit={handleOrderPrescription}>
                 {rxItems.map((item, i) => (
                   <div key={i} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
@@ -301,8 +346,8 @@ export default function PatientFlowPage({ user, onLogout }) {
                     <input type="text" value={item.duration} onChange={(e) => updateRxLine(i, 'duration', e.target.value)} placeholder="Duration" style={{ width: 90, padding: '0.5rem' }} />
                   </div>
                 ))}
-                <button type="button" onClick={addRxLine} style={{ marginRight: '0.5rem' }}>+ Line</button>
-                <button type="submit" className="btn-primary" disabled={!encounterId}>Order prescription</button>
+                <button type="button" onClick={addRxLine} style={{ marginRight: '0.5rem' }} disabled={!shouldAllowPharmacy}>+ Line</button>
+                <button type="submit" className="btn-primary" disabled={!encounterId || !shouldAllowPharmacy}>Order prescription</button>
               </form>
               <p style={{ marginTop: '1rem' }}>
                 <button type="button" className="btn-primary" onClick={goToBilling}>Go to Billing</button>
@@ -317,21 +362,21 @@ export default function PatientFlowPage({ user, onLogout }) {
             </div>
           </div>
         )}
-        {canUsePatientFlow && step === 'lab' && (
+        {shouldAllowPatientFlow && step === 'lab' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Lab</h3>
             <p>Order tests and submit results in the Lab workflow.</p>
             {encounterId && <p><button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => navigate(`/lab?encounter_id=${encounterId}`)}>Open Lab for encounter {encounterId}</button></p>}
           </div>
         )}
-        {canUsePatientFlow && step === 'pharmacy' && (
+        {shouldAllowPatientFlow && step === 'pharmacy' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Pharmacy</h3>
             <p>Create prescriptions in Consultation; dispense from the Pharmacy page.</p>
             {encounterId && <p><button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => navigate('/pharmacy')}>Open Pharmacy</button></p>}
           </div>
         )}
-        {canUsePatientFlow && step === 'billing' && (
+        {shouldAllowPatientFlow && step === 'billing' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Billing</h3>
             <p>Add charges, create invoices, and record payments (USD only).</p>

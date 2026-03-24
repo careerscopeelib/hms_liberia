@@ -4,7 +4,7 @@ import Layout from '../Layout';
 import { api } from '../api';
 
 const ORG_TYPES = [{ value: 'hospital', label: 'Hospital' }];
-const DEFAULT_MODULES = ['triage', 'consultation', 'lab', 'inpatient', 'pharmacy', 'clinic', 'billing', 'reporting'];
+const DEFAULT_MODULES = ['hospital', 'clinic', 'triage', 'consultation', 'lab', 'inpatient', 'pharmacy', 'billing', 'reporting'];
 const DEFAULT_ADDONS = ['insurance', 'assets', 'hr'];
 
 export default function Governance({ user, onLogout }) {
@@ -125,6 +125,25 @@ export default function Governance({ user, onLogout }) {
     setError('');
     try {
       await api.uhpcms.setOrgModules(manageOrgId, modulesEdit.map((m) => ({ name: m.name, enabled: m.enabled })));
+      const r = await api.uhpcms.getOrgModules(manageOrgId);
+      setOrgModules(r.data || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEnableCoreModules = async () => {
+    if (!manageOrgId) return;
+    setSaving(true);
+    setError('');
+    try {
+      const coreEnabled = modulesList.map((name) => ({
+        name,
+        enabled: ['hospital', 'clinic', 'triage', 'consultation', 'lab', 'inpatient', 'pharmacy', 'billing', 'reporting'].includes(name) ? 1 : 0,
+      }));
+      await api.uhpcms.setOrgModules(manageOrgId, coreEnabled);
       const r = await api.uhpcms.getOrgModules(manageOrgId);
       setOrgModules(r.data || []);
     } catch (e) {
@@ -316,6 +335,14 @@ export default function Governance({ user, onLogout }) {
                 </div>
               </div>
               <h4 style={{ marginTop: '1rem' }}>Modules</h4>
+              <p style={{ color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
+                If users are seeing 403 "feature not enabled", use quick enable first.
+              </p>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <button type="button" className="btn-primary" disabled={saving} onClick={handleEnableCoreModules}>
+                  Quick Enable Core Hospital Modules
+                </button>
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
                 {modulesList.map((name) => (
                   <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
