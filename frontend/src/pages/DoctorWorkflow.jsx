@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
@@ -23,6 +24,8 @@ function download(name, content, type = 'text/plain') {
 }
 
 export default function DoctorWorkflow({ user, onLogout }) {
+  const [searchParams] = useSearchParams();
+  const encounterFromUrl = searchParams.get('encounter_id') || '';
   const role = String(user?.role || '').toLowerCase();
   const canEdit = role.includes('admin') || role.includes('doctor');
   const orgId = getEffectiveOrgId(user);
@@ -30,7 +33,7 @@ export default function DoctorWorkflow({ user, onLogout }) {
   const [patients, setPatients] = useState([]);
   const [encounters, setEncounters] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
-  const [selectedEncounterId, setSelectedEncounterId] = useState('');
+  const [selectedEncounterId, setSelectedEncounterId] = useState(encounterFromUrl);
   const [drugs, setDrugs] = useState([]);
   const [wards, setWards] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -63,15 +66,63 @@ export default function DoctorWorkflow({ user, onLogout }) {
     [encounters, selectedPatient]
   );
 
-  useEffect(() => {
+  const loadWorkflowData = async () => {
     if (!orgId) return;
-    Promise.all([
+    await Promise.all([
       api.uhpcms.getPatients({ org_id: orgId }).then((r) => setPatients(r.data || [])).catch(() => setPatients([])),
       api.uhpcms.getEncounters({ org_id: orgId }).then((r) => setEncounters(r.data || [])).catch(() => setEncounters([])),
       api.uhpcms.getDrugs(orgId).then((r) => setDrugs(r.data || [])).catch(() => setDrugs([])),
       api.uhpcms.getWards(orgId).then((r) => setWards(r.data || [])).catch(() => setWards([])),
     ]);
+  };
+
+  useEffect(() => {
+    if (!orgId) return;
+    loadWorkflowData();
+    const interval = setInterval(loadWorkflowData, 8000);
+    return () => clearInterval(interval);
   }, [orgId]);
+
+  useEffect(() => {
+    if (!selectedEncounter) return;
+    // Keep form in sync with selected encounter so save/edit behaves predictably.
+    setForm((prev) => ({
+      ...prev,
+      consultation_notes: selectedEncounter.soap_notes || prev.consultation_notes,
+      referral_notes: selectedEncounter.referral_notes || '',
+      status: selectedEncounter.status || prev.status,
+    }));
+  }, [selectedEncounterId, selectedEncounter]);
+
+  useEffect(() => {
+    if (!encounterFromUrl || !encounters.length) return;
+    const match = encounters.find((e) => e.id === encounterFromUrl);
+    if (!match) return;
+    setSelectedEncounterId(match.id);
+    const patient = patients.find((p) => p.mrn === match.patient_mrn);
+    if (patient) setSelectedPatient(patient);
+  }, [encounterFromUrl, encounters, patients]);
+
+  const handleCreateEncounter = async () => {
+    if (!selectedPatient?.mrn || !orgId || !canEdit) return;
+    setSaving(true);
+    setError('');
+    setOk('');
+    try {
+      const created = await api.uhpcms.createEncounter({
+        org_id: orgId,
+        patient_mrn: selectedPatient.mrn,
+        department_id: null,
+      });
+      await loadWorkflowData();
+      if (created?.id) setSelectedEncounterId(created.id);
+      setOk('New encounter created and selected.');
+    } catch (err) {
+      setError(err.message || 'Failed to create encounter');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -129,8 +180,8 @@ export default function DoctorWorkflow({ user, onLogout }) {
           items: [{ drug_id: form.rx_drug_id, quantity: Number(form.rx_qty) || 1, dosage: form.rx_dosage || undefined }],
         });
       }
-      const updated = await api.uhpcms.getEncounters({ org_id: orgId });
-      setEncounters(updated.data || []);
+      await loadWorkflowData();
+      window.dispatchEvent(new CustomEvent('uhpcms:workflow-updated', { detail: { encounterId: selectedEncounterId } }));
       setOk('Saved. Lab order sent to Lab Technician and prescription sent to Pharmacist.');
     } catch (err) {
       setError(err.message || 'Failed to save');
@@ -216,6 +267,11 @@ export default function DoctorWorkflow({ user, onLogout }) {
                   ))}
                 </select>
               </label>
+              <div style={{ marginTop: '0.5rem' }}>
+                <button type="button" className="btn" onClick={handleCreateEncounter} disabled={!canEdit || saving}>
+                  + New encounter for this patient
+                </button>
+              </div>
             </div>
 
             <div className="card card-body" style={{ marginBottom: '1rem' }}>
@@ -275,7 +331,7 @@ export default function DoctorWorkflow({ user, onLogout }) {
               </div>
 
               <div style={{ marginTop: '1rem' }}>
-                <button type="submit" className="btn-primary" disabled={!canEdit || saving || !selectedEncounter}>
+                <button type="submit" className="btn-primary" disabled={!canEdit || saving || !selectedEncounterId}>
                   {saving ? 'Saving...' : (canEdit ? 'Save workflow' : 'Read only')}
                 </button>
               </div>

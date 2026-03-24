@@ -33,11 +33,18 @@ export default function Dashboard({ user, onLogout }) {
   const [patients, setPatients] = useState([]);
   const [opd, setOpd] = useState([]);
   const [doctorOpd, setDoctorOpd] = useState([]);
+  const [doctorRealtime, setDoctorRealtime] = useState({ pendingLabs: 0, pendingRx: 0, activeEncounters: 0, recentEncounters: [] });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   const hasToken = !!sessionStorage.getItem('uhpcms_token');
   const isAdmin = ADMIN_ROLES.includes(user?.role);
+  const encounterUrgencyStyle = (status) => {
+    if (status === 'admitted') return { background: '#fef3c7', color: '#92400e' };
+    if (status === 'on_treatment') return { background: '#dbeafe', color: '#1e3a8a' };
+    if (status === 'discharged') return { background: '#dcfce7', color: '#166534' };
+    return {};
+  };
 
   useEffect(() => {
     if (!user) {
@@ -78,6 +85,35 @@ export default function Dashboard({ user, onLogout }) {
       }
     })();
   }, [user, navigate, hasToken, isAdmin]);
+
+  useEffect(() => {
+    if (user?.role !== 'doctor' || !hasToken) return;
+    let alive = true;
+    const loadDoctorRealtime = async () => {
+      try {
+        const [labRes, rxRes, encRes] = await Promise.all([
+          api.uhpcms.getLabOrders({ status: 'pending' }).catch(() => ({ data: [] })),
+          api.uhpcms.getPrescriptions({ status: 'pending' }).catch(() => ({ data: [] })),
+          api.uhpcms.getEncounters(user?.org_id ? { org_id: user.org_id } : {}).catch(() => ({ data: [] })),
+        ]);
+        if (!alive) return;
+        const encountersData = encRes?.data || [];
+        const active = encountersData.filter((e) => !['discharged', 'cancelled'].includes(e.status || '')).length;
+        setDoctorRealtime({
+          pendingLabs: (labRes?.data || []).length,
+          pendingRx: (rxRes?.data || []).length,
+          activeEncounters: active,
+          recentEncounters: encountersData.slice(0, 8),
+        });
+      } catch (_) {}
+    };
+    loadDoctorRealtime();
+    const interval = setInterval(loadDoctorRealtime, 10000);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
+  }, [user, hasToken]);
 
   // Scroll to sidebar hash (e.g. /dashboard#employees) after content is loaded so sections exist in DOM
   useEffect(() => {
@@ -149,6 +185,102 @@ export default function Dashboard({ user, onLogout }) {
     { path: '/pharmacy', label: 'Pending Prescriptions', icon: '💊' },
     { path: '/appointments', label: 'Appointments', icon: '📅' },
   ];
+
+  if (user.role === 'doctor') {
+    return (
+      <Layout user={user} onLogout={onLogout}>
+        <div className="page-enter page-enter-active">
+          <header className="dashboard-header">
+            <h2 className="section-title">Doctor Command Center</h2>
+            <p className="dashboard-subtitle">Live clinical queues, workflow, and patient care actions</p>
+          </header>
+
+          <section className="dashboard-overview">
+            <div className="dashboard-kpi-row">
+              <div className="stat-card stat-card--blue">
+                <div className="stat-card-icon">🩺</div>
+                <div className="stat-card-label">Active Encounters</div>
+                <div className="stat-card-value">{doctorRealtime.activeEncounters}</div>
+              </div>
+              <div className="stat-card stat-card--orange">
+                <div className="stat-card-icon">🔬</div>
+                <div className="stat-card-label">Pending Labs</div>
+                <div className="stat-card-value">{doctorRealtime.pendingLabs}</div>
+              </div>
+              <div className="stat-card stat-card--green">
+                <div className="stat-card-icon">💊</div>
+                <div className="stat-card-label">Pending Prescriptions</div>
+                <div className="stat-card-value">{doctorRealtime.pendingRx}</div>
+              </div>
+            </div>
+          </section>
+
+          <h3 className="section-title" style={{ fontSize: '1.125rem' }}>Doctor quick actions</h3>
+          <div className="dashboard-feature-grid">
+            {doctorFeatureLinks.map((f) => (
+              <Link key={f.path} to={f.path} className="dashboard-feature-card">
+                <span className="dashboard-feature-icon">{f.icon}</span>
+                <span className="dashboard-feature-label">{f.label}</span>
+              </Link>
+            ))}
+          </div>
+
+          <section className="section" id="doctor-recent-encounters">
+            <h3 className="section-title">Recent encounters</h3>
+            <div className="card">
+              {doctorRealtime.recentEncounters.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', padding: '1rem', margin: 0 }}>No encounters yet.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Encounter</th>
+                        <th>MRN</th>
+                        <th>Status</th>
+                        <th>Registered</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doctorRealtime.recentEncounters.map((e) => (
+                        <tr key={e.id}>
+                          <td>{e.id}</td>
+                          <td>{e.patient_mrn}</td>
+                          <td><span className="badge" style={encounterUrgencyStyle(e.status)}>{e.status}</span></td>
+                          <td>{e.registered_at || '—'}</td>
+                          <td>
+                            <Link to={`/doctor-workflow?encounter_id=${encodeURIComponent(e.id)}`} className="btn btn-primary" style={{ padding: '0.25rem 0.5rem' }}>
+                              Open
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="section" id="opd">
+            <h3 className="section-title">Your OPD queue ({doctorOpd.length})</h3>
+            <div className="card">
+              {doctorOpd.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', padding: '1rem', margin: 0 }}>No patients in your OPD queue.</p>
+              ) : (
+                <ul className="opd-list">
+                  {doctorOpd.map((o) => (
+                    <li key={o.opdid}>OPD #{o.opdid} — PID: {o.pid}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout user={user} onLogout={onLogout}>

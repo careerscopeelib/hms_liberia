@@ -37,7 +37,12 @@ export default function OperationsNotifications({ user, onLogout }) {
     };
     load();
     const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
+    const onWorkflowSaved = () => { load(); };
+    window.addEventListener('uhpcms:workflow-updated', onWorkflowSaved);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('uhpcms:workflow-updated', onWorkflowSaved);
+    };
   }, []);
 
   return (

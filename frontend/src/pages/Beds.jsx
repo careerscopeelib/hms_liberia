@@ -11,6 +11,8 @@ export default function Beds({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ ward_id: '', bed_number: '' });
+  const [newWardName, setNewWardName] = useState('');
+  const [creatingWard, setCreatingWard] = useState(false);
 
   useEffect(() => {
     if (!orgId) return setLoading(false);
@@ -36,6 +38,25 @@ export default function Beds({ user, onLogout }) {
       setForm({ ward_id: '', bed_number: '' });
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const handleCreateWard = async () => {
+    const name = newWardName.trim();
+    if (!orgId || !name) return;
+    try {
+      setCreatingWard(true);
+      await api.uhpcms.createWard({ org_id: orgId, name, bed_count: 0 });
+      const res = await api.uhpcms.getWards(orgId);
+      const updatedWards = res.data || [];
+      setWards(updatedWards);
+      const created = updatedWards.find((w) => (w.name || '').toLowerCase() === name.toLowerCase());
+      if (created?.id) setForm((prev) => ({ ...prev, ward_id: created.id }));
+      setNewWardName('');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setCreatingWard(false);
     }
   };
 
@@ -111,6 +132,18 @@ export default function Beds({ user, onLogout }) {
                   <option value="">Select</option>
                   {wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Create new ward"
+                    value={newWardName}
+                    onChange={(e) => setNewWardName(e.target.value)}
+                  />
+                  <button type="button" className="btn" onClick={handleCreateWard} disabled={!newWardName.trim() || creatingWard}>
+                    {creatingWard ? 'Creating…' : 'Create Ward'}
+                  </button>
+                </div>
               </div>
               <div className="modal-form form-group">
                 <label className="form-label">Bed number</label>
