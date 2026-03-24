@@ -4,7 +4,7 @@ import Layout from '../Layout';
 import { api } from '../api';
 import { getEffectiveOrgId } from '../utils/org';
 
-const ENCOUNTER_STATUS = ['on_treatment', 'admitted', 'discharged'];
+const ENCOUNTER_STATUS = ['consultation', 'admitted', 'discharged'];
 
 function toCsv(rows) {
   if (!rows.length) return '';
@@ -52,8 +52,9 @@ export default function DoctorWorkflow({ user, onLogout }) {
     rx_qty: 1,
     rx_dosage: '',
     rx_note: '',
-    status: 'on_treatment',
+    status: 'consultation',
     ward_id: '',
+    bed: '',
   });
 
   const selectedEncounter = useMemo(
@@ -90,7 +91,7 @@ export default function DoctorWorkflow({ user, onLogout }) {
       ...prev,
       consultation_notes: selectedEncounter.soap_notes || prev.consultation_notes,
       referral_notes: selectedEncounter.referral_notes || '',
-      status: selectedEncounter.status || prev.status,
+      status: selectedEncounter.status === 'on_treatment' ? 'consultation' : (selectedEncounter.status || prev.status),
     }));
   }, [selectedEncounterId, selectedEncounter]);
 
@@ -151,6 +152,11 @@ export default function DoctorWorkflow({ user, onLogout }) {
     setError('');
     setOk('');
     try {
+      if (form.status === 'admitted' && (!form.ward_id || !form.bed.trim())) {
+        setError('Select ward and enter bed before admitting the patient.');
+        setSaving(false);
+        return;
+      }
       const composedNotes = [
         `Consultation Notes:\n${form.consultation_notes || '-'}`,
         `Diagnosis:\n${form.diagnosis || '-'}`,
@@ -164,8 +170,8 @@ export default function DoctorWorkflow({ user, onLogout }) {
         status: form.status,
       });
 
-      if (form.status === 'admitted' && form.ward_id) {
-        await api.uhpcms.createAdmission({ encounter_id: selectedEncounterId, ward_id: form.ward_id });
+      if (form.status === 'admitted' && form.ward_id && form.bed.trim()) {
+        await api.uhpcms.createAdmission({ encounter_id: selectedEncounterId, ward_id: form.ward_id, bed: form.bed.trim() });
       }
       if (form.lab_name.trim()) {
         await api.uhpcms.createLabOrder({
@@ -323,10 +329,20 @@ export default function DoctorWorkflow({ user, onLogout }) {
                   {ENCOUNTER_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
                 {form.status === 'admitted' && (
-                  <select disabled={!canEdit} value={form.ward_id} onChange={(e) => setForm((f) => ({ ...f, ward_id: e.target.value }))} style={{ padding: '0.5rem', minWidth: 220 }}>
-                    <option value="">Select ward</option>
-                    {wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
+                  <>
+                    <select disabled={!canEdit} value={form.ward_id} onChange={(e) => setForm((f) => ({ ...f, ward_id: e.target.value }))} style={{ padding: '0.5rem', minWidth: 220 }}>
+                      <option value="">Select ward</option>
+                      {wards.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Bed (e.g. Bed-01)"
+                      readOnly={!canEdit}
+                      value={form.bed}
+                      onChange={(e) => setForm((f) => ({ ...f, bed: e.target.value }))}
+                      style={{ padding: '0.5rem', minWidth: 180 }}
+                    />
+                  </>
                 )}
               </div>
 
