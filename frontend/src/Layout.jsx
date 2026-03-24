@@ -18,6 +18,7 @@ const FULL_SIDEBAR_GROUPS = [
       { path: '/departments', label: 'Departments', icon: '🏢' },
       { path: '/doctors', label: 'Doctors', icon: '👨‍⚕️' },
       { path: '/patients', label: 'Patients', icon: '👥', module: ['hospital', 'clinic'] },
+      { path: '/register-patient', label: 'Register Patient', icon: '🧾', module: ['hospital', 'clinic'] },
       { path: '/doctor-workflow', label: 'Doctor Workflow', icon: '🩺', module: ['hospital', 'clinic'] },
       { path: '/schedule', label: 'Schedule', icon: '📅', module: 'clinic' },
       { path: '/appointments', label: 'Appointments', icon: '📅', module: 'clinic' },
@@ -75,6 +76,7 @@ const PORTAL_SIDEBARS = {
       items: [
         { path: '/doctor-workflow', label: 'Doctor Workflow', icon: '🩺' },
         { path: '/patients', label: 'Patient List', icon: '👥' },
+        { path: '/register-patient', label: 'Register Patient', icon: '🧾' },
         { path: '/schedule', label: 'Schedule Management', icon: '📅' },
         { path: '/appointments', label: 'Appointment Management', icon: '📅' },
       { path: '/operations-notifications', label: 'Operational Notifications', icon: '🔔' },
@@ -131,6 +133,7 @@ const PORTAL_SIDEBARS = {
       items: [
         { path: '/doctors', label: 'Doctor List', icon: '👨‍⚕️' },
         { path: '/patients', label: 'Manage Patient', icon: '👥' },
+        { path: '/register-patient', label: 'Register Patient', icon: '🧾' },
         { path: '/schedule', label: 'View Schedule', icon: '📅' },
         { path: '/appointments', label: 'Appointment Management', icon: '📅' },
         { path: '/noticeboard', label: 'Noticeboard', icon: '📌' },
@@ -154,6 +157,7 @@ const PORTAL_SIDEBARS = {
       label: 'Representative Portal',
       items: [
         { path: '/patients', label: 'Manage Patient', icon: '👥' },
+        { path: '/register-patient', label: 'Register Patient', icon: '🧾' },
         { path: '/schedule', label: 'View Schedule', icon: '📅' },
         { path: '/appointments', label: 'Manage Appointment', icon: '📅' },
       ],

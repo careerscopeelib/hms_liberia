@@ -64,7 +64,7 @@ export default function Patients({ user, onLogout }) {
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         {currentOrgId && (
           <p style={{ marginBottom: '1rem' }}>
-            <button type="button" className="btn btn-primary" onClick={() => navigate('/workflow')}>Register new patient</button>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/register-patient')}>Register new patient</button>
             <span style={{ marginLeft: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Opens Patient flow to register with optional demographics.</span>
           </p>
         )}
