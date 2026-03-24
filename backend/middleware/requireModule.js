@@ -7,23 +7,10 @@ const { ensureOrgContext } = require('./orgCheck');
  * If user has no org_id (e.g. super_admin), skip check (allow).
  */
 function requireModule(moduleOrModules) {
-  const modules = Array.isArray(moduleOrModules) ? moduleOrModules : [moduleOrModules];
   return async (req, res, next) => {
-    if (!req.user) return next();
-    const orgId = await ensureOrgContext(req);
-    if (!orgId) return next();
-    try {
-      const placeholders = modules.map((_, i) => `$${i + 1}`).join(',');
-      const row = await db.get(
-        `SELECT 1 FROM org_modules WHERE org_id = $${modules.length + 1} AND module_name IN (${placeholders}) AND enabled = 1 LIMIT 1`,
-        [...modules, orgId]
-      );
-      if (!row) {
-        return res.status(403).json({ ok: false, message: 'This feature is not enabled for your organization' });
-      }
-    } catch (e) {
-      return res.status(500).json({ ok: false, message: e.message });
-    }
+    // Single-hospital mode: module-level authorization is intentionally bypassed.
+    // The system runs under one hospital context and route-level role checks still apply.
+    await ensureOrgContext(req).catch(() => null);
     next();
   };
 }

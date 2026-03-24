@@ -8,18 +8,18 @@ async function resolveSingleHospitalOrgId() {
 }
 
 async function ensureOrgContext(req) {
-  if (!req.user) return null;
-  if (req.user.org_id) {
+  if (req?.orgId) return req.orgId;
+  if (req?.user?.org_id) {
     req.orgId = req.user.org_id;
     return req.orgId;
   }
   const orgId = await resolveSingleHospitalOrgId();
   if (orgId) {
-    req.user.org_id = orgId;
+    if (req?.user) req.user.org_id = orgId;
     req.orgId = orgId;
     return orgId;
   }
-  req.orgId = null;
+  if (req) req.orgId = null;
   return null;
 }
 
