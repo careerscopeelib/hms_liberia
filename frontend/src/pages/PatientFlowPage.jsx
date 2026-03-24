@@ -39,8 +39,9 @@ export default function PatientFlowPage({ user, onLogout }) {
 
   const currentOrgId = getEffectiveOrgId(user);
   const enabledModules = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
-  const canUsePatientFlow = enabledModules.includes('hospital') || enabledModules.includes('clinic');
-  const canUsePharmacy = enabledModules.includes('pharmacy');
+  const hasExplicitModules = enabledModules.length > 0;
+  const canUsePatientFlow = !hasExplicitModules || enabledModules.includes('hospital') || enabledModules.includes('clinic');
+  const canUsePharmacy = !hasExplicitModules || enabledModules.includes('pharmacy');
 
   const loadDataForOrg = (orgId) => {
     if (!orgId) return;
