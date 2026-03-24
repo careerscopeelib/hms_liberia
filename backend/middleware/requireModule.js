@@ -1,4 +1,5 @@
 const db = require('../db');
+const { ensureOrgContext } = require('./orgCheck');
 
 /**
  * Middleware: require the organization to have at least one of the given modules enabled.
@@ -9,8 +10,8 @@ function requireModule(moduleOrModules) {
   const modules = Array.isArray(moduleOrModules) ? moduleOrModules : [moduleOrModules];
   return async (req, res, next) => {
     if (!req.user) return next();
-    const orgId = req.user.org_id;
-    if (!orgId) return next(); // super_admin or no org: allow
+    const orgId = await ensureOrgContext(req);
+    if (!orgId) return next();
     try {
       const placeholders = modules.map((_, i) => `$${i + 1}`).join(',');
       const row = await db.get(

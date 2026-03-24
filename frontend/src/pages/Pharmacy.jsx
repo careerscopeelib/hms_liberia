@@ -22,6 +22,7 @@ export default function Pharmacy({ user, onLogout }) {
   const [newRxItems, setNewRxItems] = useState([{ drug_id: '', quantity: 1, dosage: '', duration: '' }]);
   const [dispenseStoreId, setDispenseStoreId] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [liveStamp, setLiveStamp] = useState('');
 
   const currentOrgId = getEffectiveOrgId(user);
 
@@ -37,6 +38,14 @@ export default function Pharmacy({ user, onLogout }) {
   };
 
   useEffect(() => { load(); }, [currentOrgId, filterStatus, filterEncounter]);
+  useEffect(() => {
+    if (!currentOrgId) return;
+    const interval = setInterval(() => {
+      load();
+      setLiveStamp(new Date().toLocaleTimeString());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [currentOrgId, filterStatus, filterEncounter]);
 
   useEffect(() => {
     if (location.hash === '#categories') setTab('drugs');
@@ -84,11 +93,28 @@ export default function Pharmacy({ user, onLogout }) {
     } catch (e) { setError(e.message); }
   };
 
+  const pendingCount = prescriptions.filter((p) => p.status === 'pending').length;
+  const dispensedCount = prescriptions.filter((p) => p.status === 'dispensed').length;
+
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Pharmacy</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Manage medicine list, prescriptions, dispense, inventory.</p>
+        <div className="stats-grid" style={{ marginBottom: '1rem' }}>
+          <div className="stat-card stat-card--orange">
+            <div className="stat-card-label">Pending Prescriptions</div>
+            <div className="stat-card-value">{pendingCount}</div>
+          </div>
+          <div className="stat-card stat-card--green">
+            <div className="stat-card-label">Dispensed</div>
+            <div className="stat-card-value">{dispensedCount}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-label">Realtime sync</div>
+            <div className="stat-card-value" style={{ fontSize: '1rem' }}>{liveStamp || 'Live'}</div>
+          </div>
+        </div>
         {!currentOrgId && (user?.role === 'super_admin' || user?.role === 'role_super_admin') && (
           <p className="login-error" style={{ marginBottom: '1rem' }}>Select an organization in the sidebar to use this page.</p>
         )}

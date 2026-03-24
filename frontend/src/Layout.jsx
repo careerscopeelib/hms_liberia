@@ -18,6 +18,7 @@ const FULL_SIDEBAR_GROUPS = [
       { path: '/departments', label: 'Departments', icon: '🏢' },
       { path: '/doctors', label: 'Doctors', icon: '👨‍⚕️' },
       { path: '/patients', label: 'Patients', icon: '👥', module: ['hospital', 'clinic'] },
+      { path: '/doctor-workflow', label: 'Doctor Workflow', icon: '🩺', module: ['hospital', 'clinic'] },
       { path: '/schedule', label: 'Schedule', icon: '📅', module: 'clinic' },
       { path: '/appointments', label: 'Appointments', icon: '📅', module: 'clinic' },
       { path: '/workflow', label: 'Patient flow', icon: '📝', module: ['hospital', 'clinic'] },
@@ -72,9 +73,11 @@ const PORTAL_SIDEBARS = {
     {
       label: 'Doctor Portal',
       items: [
+        { path: '/doctor-workflow', label: 'Doctor Workflow', icon: '🩺' },
         { path: '/patients', label: 'Patient List', icon: '👥' },
         { path: '/schedule', label: 'Schedule Management', icon: '📅' },
         { path: '/appointments', label: 'Appointment Management', icon: '📅' },
+      { path: '/operations-notifications', label: 'Operational Notifications', icon: '🔔' },
         { path: '/prescriptions', label: 'Prescription Management', icon: '💊' },
         { path: '/noticeboard', label: 'Noticeboard', icon: '📌' },
         { path: '/activities', label: 'Hospital Activities', icon: '📊' },
@@ -163,6 +166,7 @@ const PORTAL_SIDEBARS = {
       items: [
         { path: '/lab', label: 'Add Investigation Report', icon: '🔬' },
         { path: '/lab', label: 'Manage Investigation Report', icon: '📋' },
+        { path: '/operations-notifications', label: 'Operational Notifications', icon: '🔔' },
         { path: '/noticeboard', label: 'Noticeboard', icon: '📌' },
       ],
     },
@@ -228,7 +232,7 @@ export default function Layout({ user, onLogout, children }) {
   const currentPath = location.pathname + (location.search || '') + (location.hash || '');
 
   const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'role_super_admin';
-  const needsOrgSelector = isSuperAdmin && !user?.org_id;
+  const shouldAutoPickOrg = isSuperAdmin && !user?.org_id;
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrgId, setSelectedOrgIdState] = useState(getSelectedOrgId);
   const [searchQuery, setSearchQuery] = useState('');
@@ -237,6 +241,8 @@ export default function Layout({ user, onLogout, children }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [opsMetrics, setOpsMetrics] = useState({ pending_lab_orders: 0, pending_prescriptions: 0 });
+  const [opsNotifications, setOpsNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
@@ -245,11 +251,75 @@ export default function Layout({ user, onLogout, children }) {
   const orgIdForSearch = getEffectiveOrgId(user);
 
   useEffect(() => {
-    if (!needsOrgSelector) return;
+    if (!shouldAutoPickOrg) return;
     api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => []);
-  }, [needsOrgSelector]);
+  }, [shouldAutoPickOrg]);
+
+  useEffect(() => {
+    if (!shouldAutoPickOrg || selectedOrgId || !organizations.length) return;
+    const firstOrgId = organizations[0]?.id;
+    if (!firstOrgId) return;
+    setSelectedOrgIdState(firstOrgId);
+    setSelectedOrgId(firstOrgId);
+  }, [shouldAutoPickOrg, selectedOrgId, organizations]);
 
   // Notifications: fetch when open, poll every 30s for real-time updates
+  useEffect(() => {
+    const role = normalizeRole(user?.role);
+    if (!user || !['lab', 'pharmacist', 'doctor', 'accountant', 'administrator', 'org_admin', 'super_admin', 'role_super_admin'].includes(role)) return;
+    const pollOps = () => {
+      const orgId = getEffectiveOrgId(user);
+      api.uhpcms.getReportingDashboard(orgId || selectedOrgId || undefined)
+        .then((r) => {
+          const d = r?.data || {};
+          setOpsMetrics({
+            pending_lab_orders: Number(d.pending_lab_orders || 0),
+            pending_prescriptions: Number(d.pending_prescriptions || 0),
+          });
+        })
+        .catch(() => setOpsMetrics({ pending_lab_orders: 0, pending_prescriptions: 0 }));
+    };
+    pollOps();
+    const interval = setInterval(pollOps, 15000);
+    return () => clearInterval(interval);
+  }, [user, selectedOrgId]);
+
+  useEffect(() => {
+    if (!user) return;
+    const role = normalizeRole(user?.role);
+    if (!['lab', 'pharmacist', 'doctor', 'administrator', 'org_admin', 'super_admin', 'role_super_admin'].includes(role)) return;
+    const pollNotifications = async () => {
+      try {
+        const [labRes, rxRes] = await Promise.all([
+          api.uhpcms.getLabOrders({ status: 'pending' }).catch(() => ({ data: [] })),
+          api.uhpcms.getPrescriptions({ status: 'pending' }).catch(() => ({ data: [] })),
+        ]);
+        const labItems = (labRes.data || []).slice(0, 4).map((o) => ({
+          id: `lab-${o.id}`,
+          title: `Lab order pending: ${o.test_name}`,
+          content: `Encounter ${o.encounter_id}`,
+          created_at: o.ordered_at,
+        }));
+        const rxItems = (rxRes.data || []).slice(0, 4).map((o) => ({
+          id: `rx-${o.id}`,
+          title: `Prescription pending: ${o.id}`,
+          content: `Encounter ${o.encounter_id}`,
+          created_at: o.prescribed_at,
+        }));
+        setOpsNotifications(
+          [...labItems, ...rxItems]
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+            .slice(0, 8)
+        );
+      } catch (_) {
+        setOpsNotifications([]);
+      }
+    };
+    pollNotifications();
+    const interval = setInterval(pollNotifications, 12000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   useEffect(() => {
     if (!notificationsOpen) return;
     const fetchNotices = () => {
@@ -308,12 +378,6 @@ export default function Layout({ user, onLogout, children }) {
     else if (stored) setSelectedOrgIdState(stored);
   }, [organizations]);
 
-  const handleOrgChange = (e) => {
-    const id = e.target.value || '';
-    setSelectedOrgIdState(id);
-    setSelectedOrgId(id);
-  };
-
   const handleLogout = () => {
     setSelectedOrgId('');
     onLogout();
@@ -333,20 +397,9 @@ export default function Layout({ user, onLogout, children }) {
       <aside className="sidebar sidebar--dark">
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">➕</div>
-          <span className="sidebar-brand-text">Hospital</span>
+          <span className="sidebar-brand-text">Hospital HQ</span>
         </div>
-        <div className="sidebar-subtitle">Hospital Management System</div>
-        {needsOrgSelector && organizations.length > 0 && (
-          <div className="sidebar-org-select">
-            <label>Organization</label>
-            <select value={selectedOrgId} onChange={handleOrgChange} title="Select organization">
-              <option value="">— Select org —</option>
-              {organizations.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="sidebar-subtitle">Single Hospital Management System</div>
         <nav className="sidebar-nav">
           {useMemo(() => {
             const groups = getSidebarGroups(user);
@@ -367,6 +420,12 @@ export default function Layout({ user, onLogout, children }) {
                       >
                         <span className="sidebar-nav-item-icon">{item.icon}</span>
                         {item.label}
+                        {(item.path === '/lab' && opsMetrics.pending_lab_orders > 0) && (
+                          <span className="badge" style={{ marginLeft: 'auto' }}>{opsMetrics.pending_lab_orders}</span>
+                        )}
+                        {(item.path === '/pharmacy' && opsMetrics.pending_prescriptions > 0) && (
+                          <span className="badge" style={{ marginLeft: 'auto' }}>{opsMetrics.pending_prescriptions}</span>
+                        )}
                       </Link>
                     );
                   })}
@@ -483,14 +542,21 @@ export default function Layout({ user, onLogout, children }) {
                 title="Notifications"
               >
                 🔔
-                {notifications.length > 0 && <span className="header-notification-dot" />}
+                {(notifications.length > 0 || opsNotifications.length > 0) && <span className="header-notification-dot" />}
               </button>
               {notificationsOpen && (
                 <div className="header-dropdown header-notifications-panel">
                   <div className="header-dropdown-title">Notifications</div>
+                  {opsNotifications.map((n) => (
+                    <div key={n.id} className="header-notification-item">
+                      <strong>{n.title}</strong>
+                      {n.content && <p className="header-notification-content">{n.content}</p>}
+                      <span className="header-notification-time">{n.created_at}</span>
+                    </div>
+                  ))}
                   {notificationsLoading ? (
                     <div className="header-dropdown-item">Loading…</div>
-                  ) : notifications.length === 0 ? (
+                  ) : notifications.length === 0 && opsNotifications.length === 0 ? (
                     <div className="header-dropdown-item">No new notices.</div>
                   ) : (
                     notifications.slice(0, 8).map((n) => (

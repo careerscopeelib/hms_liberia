@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
-import { getEffectiveOrgId, getSelectedOrgId, setSelectedOrgId } from '../utils/org';
+import { getEffectiveOrgId } from '../utils/org';
 
 const STEPS = [
   { id: 'register', label: '1. Registration' },
@@ -16,7 +16,6 @@ const STEPS = [
 export default function PatientFlowPage({ user, onLogout }) {
   const navigate = useNavigate();
   const [step, setStep] = useState('register');
-  const [organizations, setOrganizations] = useState([]);
   const [patients, setPatients] = useState([]);
   const [encounters, setEncounters] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -60,7 +59,6 @@ export default function PatientFlowPage({ user, onLogout }) {
 
   useEffect(() => {
     if (!user) return;
-    api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => []);
   }, [user]);
 
   useEffect(() => {
@@ -206,19 +204,7 @@ export default function PatientFlowPage({ user, onLogout }) {
             <button key={s.id} type="button" className={`btn ${step === s.id ? 'btn-primary' : ''}`} style={step === s.id ? {} : { background: 'var(--color-bg)', color: 'var(--color-text)' }} onClick={() => { setStep(s.id); setError(''); setSuccessMsg(''); }}>{s.label}</button>
           ))}
         </div>
-        {(user?.role === 'super_admin' || user?.role === 'role_super_admin') && !user?.org_id && (
-          <>
-            <select
-              value={getSelectedOrgId()}
-              onChange={(e) => { const id = e.target.value; setSelectedOrgId(id); loadDataForOrg(id); }}
-              style={{ padding: '0.5rem', marginBottom: '1rem' }}
-            >
-              <option value="">Select organization in sidebar or here</option>
-              {organizations.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-            {!currentOrgId && <p className="login-error" style={{ marginBottom: '1rem' }}>Select an organization above (or in the sidebar) to use patient flow.</p>}
-          </>
-        )}
+        {!currentOrgId && <p className="login-error" style={{ marginBottom: '1rem' }}>Hospital is not configured yet.</p>}
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         {successMsg && <div className="login-success" style={{ marginBottom: '1rem' }}>{successMsg}</div>}
         {step === 'register' && (

@@ -3,7 +3,7 @@ const db = require('../db');
 const config = require('../config');
 const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
-const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgActive, ensureOrgContext } = require('../middleware/orgCheck');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -32,7 +32,7 @@ async function safeQuery(sql, params = []) {
 
 router.get('/dashboard', async (req, res) => {
   try {
-    const orgId = req.user?.org_id || req.query.org_id;
+    const orgId = await ensureOrgContext(req);
     const encSql = orgId ? 'SELECT COUNT(*) as c FROM encounters WHERE org_id = $1' : 'SELECT COUNT(*) as c FROM encounters';
     const encParams = orgId ? [orgId] : [];
     const encounters = await safeGet(encSql, encParams);
@@ -61,7 +61,7 @@ router.get('/dashboard', async (req, res) => {
 
 router.get('/bed-occupancy', async (req, res) => {
   try {
-    const org_id = req.query.org_id;
+    const org_id = await ensureOrgContext(req);
     if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
     const rows = await safeQuery(
       'SELECT w.id, w.name, w.bed_count, (SELECT COUNT(*) FROM admissions a WHERE a.ward_id = w.id AND a.discharged_at IS NULL) as occupied FROM wards w WHERE w.org_id = $1',
@@ -76,7 +76,7 @@ router.get('/bed-occupancy', async (req, res) => {
 // Analytics for admin dashboard charts (last 7 days, by status)
 router.get('/analytics', async (req, res) => {
   try {
-    const orgId = req.user?.org_id || req.query.org_id;
+    const orgId = await ensureOrgContext(req);
     const encWhere = orgId ? ' WHERE org_id = $1' : '';
     const encParams = orgId ? [orgId] : [];
 

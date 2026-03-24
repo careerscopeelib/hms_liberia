@@ -142,6 +142,13 @@ export default function Dashboard({ user, onLogout }) {
     { path: '/activities', label: 'Activities', icon: '📊' },
     { path: '/lab', label: 'Lab', icon: '🔬' },
   ];
+  const doctorFeatureLinks = [
+    { path: '/doctor-workflow', label: 'Doctor Workflow', icon: '🩺' },
+    { path: '/patients', label: 'Patient Records', icon: '🧾' },
+    { path: '/lab', label: 'Pending Labs', icon: '🔬' },
+    { path: '/pharmacy', label: 'Pending Prescriptions', icon: '💊' },
+    { path: '/appointments', label: 'Appointments', icon: '📅' },
+  ];
 
   return (
     <Layout user={user} onLogout={onLogout}>
@@ -217,13 +224,24 @@ export default function Dashboard({ user, onLogout }) {
         {/* Key features grid */}
         <h3 className="section-title" style={{ fontSize: '1.125rem' }}>Key features</h3>
         <div className="dashboard-feature-grid">
-          {FEATURE_LINKS.map((f) => (
+          {(user.role === 'doctor' ? doctorFeatureLinks : FEATURE_LINKS).map((f) => (
             <Link key={f.path} to={f.path} className="dashboard-feature-card">
               <span className="dashboard-feature-icon">{f.icon}</span>
               <span className="dashboard-feature-label">{f.label}</span>
             </Link>
           ))}
         </div>
+
+        {user.role === 'doctor' && (
+          <div className="card card--padded" style={{ marginBottom: '1.5rem' }}>
+            <h3 style={{ marginTop: 0 }}>Doctor portal summary</h3>
+            <p style={{ color: 'var(--color-text-muted)' }}>
+              Use Doctor Workflow for consultation notes, diagnosis, lab order, treatment plan, drug dosage, referral notes,
+              and disposition (admit/discharge/on-treatment). Lab and pharmacy queues update in real time.
+            </p>
+            <Link to="/doctor-workflow" className="btn btn-primary">Open Doctor Workflow</Link>
+          </div>
+        )}
 
         {/* KPI cards — U-HPCMS */}
         {uhpcmsDashboard && (

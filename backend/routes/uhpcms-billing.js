@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
@@ -11,18 +12,11 @@ router.use(requireAuth);
 router.use(requireOrgActive);
 router.use(requireModule('billing'));
 
-function orgContext(req, res, next) {
-  const orgId = req.user?.org_id || req.query.org_id || req.body?.org_id;
-  if (!orgId && req.user?.role !== 'super_admin') return res.status(400).json({ ok: false, message: 'org_id required' });
-  req.orgId = orgId;
-  next();
-}
-
 // GET /api/uhpcms/billing/invoices?encounter_id=  OR  ?org_id= (list all for org)
-router.get('/invoices', async (req, res) => {
+router.get('/invoices', requireOrgContext, async (req, res) => {
   try {
-    const { encounter_id, org_id } = req.query;
-    const orgId = org_id || req.user?.org_id;
+    const { encounter_id } = req.query;
+    const orgId = req.orgId;
     if (encounter_id) {
       const rows = await db.query(
         'SELECT id, encounter_id, total_amount, currency, status, created_at, paid_at FROM invoices WHERE encounter_id = $1 ORDER BY created_at',
@@ -43,9 +37,9 @@ router.get('/invoices', async (req, res) => {
 });
 
 // GET /api/uhpcms/billing/payments?org_id= (list all payments for org)
-router.get('/payments', orgContext, async (req, res) => {
+router.get('/payments', requireOrgContext, async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const rows = await db.query(
       `SELECT p.id, p.invoice_id, p.amount, p.currency, p.method, p.reference, p.created_at, i.encounter_id, e.patient_mrn
        FROM payments p JOIN invoices i ON i.id = p.invoice_id JOIN encounters e ON e.id = i.encounter_id

@@ -4,18 +4,12 @@ const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
 router.use(requireOrgActive);
-
-const orgContext = (req, res, next) => {
-  const orgId = req.user?.org_id || req.query.org_id || req.body?.org_id;
-  if (!orgId && req.user?.role !== 'super_admin') return res.status(400).json({ ok: false, message: 'org_id required' });
-  req.orgId = orgId;
-  next();
-};
 
 // ---------- Roles (for user creation dropdown) ----------
 const DEFAULT_ORG_ROLES = [
@@ -28,9 +22,9 @@ const DEFAULT_ORG_ROLES = [
   ['representative', (id) => `role_representative_${id}`],
 ];
 
-router.get('/roles', async (req, res) => {
+router.get('/roles', requireOrgContext, async (req, res) => {
   try {
-    const orgId = req.query.org_id || req.user?.org_id;
+    const orgId = req.orgId;
     const normalizedOrgId = orgId && String(orgId).trim() ? orgId : null;
     if (normalizedOrgId) {
       for (const [name, idFn] of DEFAULT_ORG_ROLES) {
@@ -53,9 +47,9 @@ router.get('/roles', async (req, res) => {
 });
 
 // ---------- Departments ----------
-router.get('/departments', orgContext, audit('org_admin', 'list_departments'), async (req, res) => {
+router.get('/departments', requireOrgContext, audit('org_admin', 'list_departments'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const rows = await db.query('SELECT id, org_id, name, created_at FROM departments WHERE org_id = $1 ORDER BY name', [orgId]);
     res.json({ ok: true, data: rows });
   } catch (e) {
@@ -63,11 +57,11 @@ router.get('/departments', orgContext, audit('org_admin', 'list_departments'), a
   }
 });
 
-router.post('/departments', orgContext, audit('org_admin', 'create_department'), async (req, res) => {
+router.post('/departments', requireOrgContext, audit('org_admin', 'create_department'), async (req, res) => {
   try {
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const id = await ids.getNextPrefixedId('departments', 'id', 'DEPT-', 'org_id', orgId);
     await db.run('INSERT INTO departments (id, org_id, name) VALUES ($1, $2, $3)', [id, orgId, name]);
     res.status(201).json({ ok: true, id });
@@ -77,9 +71,9 @@ router.post('/departments', orgContext, audit('org_admin', 'create_department'),
 });
 
 // ---------- Wards ----------
-router.get('/wards', orgContext, audit('org_admin', 'list_wards'), async (req, res) => {
+router.get('/wards', requireOrgContext, audit('org_admin', 'list_wards'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const rows = await db.query('SELECT id, org_id, name, bed_count, created_at FROM wards WHERE org_id = $1 ORDER BY name', [orgId]);
     res.json({ ok: true, data: rows });
   } catch (e) {
@@ -87,11 +81,11 @@ router.get('/wards', orgContext, audit('org_admin', 'list_wards'), async (req, r
   }
 });
 
-router.post('/wards', orgContext, audit('org_admin', 'create_ward'), async (req, res) => {
+router.post('/wards', requireOrgContext, audit('org_admin', 'create_ward'), async (req, res) => {
   try {
     const { name, bed_count } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const id = await ids.getNextPrefixedId('wards', 'id', 'WARD-', 'org_id', orgId);
     await db.run('INSERT INTO wards (id, org_id, name, bed_count) VALUES ($1, $2, $3, $4)', [id, orgId, name, bed_count || 0]);
     res.status(201).json({ ok: true, id });
@@ -101,9 +95,9 @@ router.post('/wards', orgContext, audit('org_admin', 'create_ward'), async (req,
 });
 
 // ---------- Pharmacy stores ----------
-router.get('/pharmacy-stores', orgContext, audit('org_admin', 'list_stores'), async (req, res) => {
+router.get('/pharmacy-stores', requireOrgContext, audit('org_admin', 'list_stores'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const rows = await db.query('SELECT id, org_id, name, created_at FROM pharmacy_stores WHERE org_id = $1 ORDER BY name', [orgId]);
     res.json({ ok: true, data: rows });
   } catch (e) {
@@ -111,11 +105,11 @@ router.get('/pharmacy-stores', orgContext, audit('org_admin', 'list_stores'), as
   }
 });
 
-router.post('/pharmacy-stores', orgContext, audit('org_admin', 'create_store'), async (req, res) => {
+router.post('/pharmacy-stores', requireOrgContext, audit('org_admin', 'create_store'), async (req, res) => {
   try {
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const id = await ids.getNextPrefixedId('pharmacy_stores', 'id', 'STORE-', 'org_id', orgId);
     await db.run('INSERT INTO pharmacy_stores (id, org_id, name) VALUES ($1, $2, $3)', [id, orgId, name]);
     res.status(201).json({ ok: true, id });
@@ -125,9 +119,9 @@ router.post('/pharmacy-stores', orgContext, audit('org_admin', 'create_store'), 
 });
 
 // ---------- Services (billing codes) ----------
-router.get('/services', orgContext, audit('org_admin', 'list_services'), async (req, res) => {
+router.get('/services', requireOrgContext, audit('org_admin', 'list_services'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const rows = await db.query('SELECT id, org_id, code, name, default_amount, default_currency, created_at FROM services WHERE org_id = $1 ORDER BY code', [orgId]);
     res.json({ ok: true, data: rows });
   } catch (e) {
@@ -135,11 +129,11 @@ router.get('/services', orgContext, audit('org_admin', 'list_services'), async (
   }
 });
 
-router.post('/services', orgContext, audit('org_admin', 'create_service'), async (req, res) => {
+router.post('/services', requireOrgContext, audit('org_admin', 'create_service'), async (req, res) => {
   try {
     const { code, name, default_amount, default_currency } = req.body || {};
     if (!code || !name) return res.status(400).json({ ok: false, message: 'code and name required' });
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const id = await ids.getNextPrefixedId('services', 'id', 'SVC-', 'org_id', orgId);
     await db.run(
       'INSERT INTO services (id, org_id, code, name, default_amount, default_currency) VALUES ($1, $2, $3, $4, $5, $6)',
@@ -152,9 +146,9 @@ router.post('/services', orgContext, audit('org_admin', 'create_service'), async
 });
 
 // ---------- Users (org-level) ----------
-router.get('/users', orgContext, audit('org_admin', 'list_users'), async (req, res) => {
+router.get('/users', requireOrgContext, audit('org_admin', 'list_users'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const rows = await db.query(
       'SELECT u.id, u.org_id, u.email, u.role_id, u.department_id, u.full_name, u.status, u.created_at FROM system_users u WHERE u.org_id = $1 ORDER BY u.email',
       [orgId]
@@ -168,11 +162,11 @@ router.get('/users', orgContext, audit('org_admin', 'list_users'), async (req, r
   }
 });
 
-router.post('/users', orgContext, audit('org_admin', 'create_user'), async (req, res) => {
+router.post('/users', requireOrgContext, audit('org_admin', 'create_user'), async (req, res) => {
   try {
     const { email, password, role_id, department_id, full_name } = req.body || {};
     if (!email || !password) return res.status(400).json({ ok: false, message: 'email and password required' });
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const defaultRoleId = `role_org_admin_${orgId}`;
     const id = await ids.getNextUserId();
     const hash = await bcrypt.hash(password, 10);
@@ -187,9 +181,9 @@ router.post('/users', orgContext, audit('org_admin', 'create_user'), async (req,
 });
 
 // PATCH /api/uhpcms/org-admin/users/:id - update user (same org)
-router.patch('/users/:id', orgContext, audit('org_admin', 'update_user'), async (req, res) => {
+router.patch('/users/:id', requireOrgContext, audit('org_admin', 'update_user'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const { id } = req.params;
     const { email, full_name, role_id, department_id, status, password } = req.body || {};
     const existing = await db.get('SELECT id, org_id FROM system_users WHERE id = $1 AND org_id = $2', [id, orgId]);
@@ -212,9 +206,9 @@ router.patch('/users/:id', orgContext, audit('org_admin', 'update_user'), async 
 });
 
 // DELETE /api/uhpcms/org-admin/users/:id - deactivate user (same org)
-router.delete('/users/:id', orgContext, audit('org_admin', 'delete_user'), async (req, res) => {
+router.delete('/users/:id', requireOrgContext, audit('org_admin', 'delete_user'), async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const { id } = req.params;
     const existing = await db.get('SELECT id FROM system_users WHERE id = $1 AND org_id = $2', [id, orgId]);
     if (!existing) return res.status(404).json({ ok: false, message: 'User not found' });

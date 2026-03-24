@@ -2,25 +2,19 @@ import { useState, useEffect } from 'react';
 import Layout from '../Layout';
 import { api } from '../api';
 import { useCurrency } from '../context/CurrencyContext';
-import { getSelectedOrgId } from '../utils/org';
+import { getEffectiveOrgId } from '../utils/org';
 
 export default function Reporting({ user, onLogout }) {
   const { formatMoney } = useCurrency();
-  const [orgId, setOrgId] = useState(() => user?.org_id || getSelectedOrgId() || '');
-  const [organizations, setOrganizations] = useState([]);
+  const orgId = getEffectiveOrgId(user);
   const [dashboard, setDashboard] = useState(null);
   const [bedOccupancy, setBedOccupancy] = useState([]);
   const [loading, setLoading] = useState(true);
   const [moduleDisabled, setModuleDisabled] = useState(false);
 
   useEffect(() => {
-    api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const isAllOrgs = (user?.role === 'super_admin' || user?.role === 'role_super_admin') && orgId === '';
-    const dashboardOrgId = isAllOrgs ? undefined : (orgId || user?.org_id || organizations[0]?.id);
-    if (!dashboardOrgId && !isAllOrgs) { setLoading(false); return; }
+    const dashboardOrgId = orgId || undefined;
+    if (!dashboardOrgId) { setLoading(false); return; }
     setLoading(true);
     setModuleDisabled(false);
     const dashboardPromise = api.uhpcms.getReportingDashboard(dashboardOrgId)
@@ -38,22 +32,12 @@ export default function Reporting({ user, onLogout }) {
         setBedOccupancy(b || []);
       })
       .finally(() => setLoading(false));
-  }, [orgId, user?.org_id, user?.role, organizations]);
-
-  const currentOrgId = orgId || user?.org_id || organizations[0]?.id;
+  }, [orgId]);
 
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Reporting & analytics</h2>
-        {(user?.role === 'super_admin' || user?.role === 'role_super_admin') && (
-          <select value={orgId} onChange={(e) => setOrgId(e.target.value)} style={{ padding: '0.5rem', marginBottom: '1rem' }}>
-            <option value="">All orgs</option>
-            {organizations.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
-        )}
         {loading ? (
           <div className="loading-state">Loading…</div>
         ) : moduleDisabled ? (

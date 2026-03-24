@@ -19,7 +19,8 @@ router.get('/', async (req, res) => {
         lrdPerUsd,
         options: ['USD', 'LRD'],
       },
-      systemName: 'U-HPCMS',
+      systemName: 'Hospital HQ',
+      singleHospitalMode: true,
     });
   } catch (e) {
     res.status(500).json({ ok: false, message: e.message });

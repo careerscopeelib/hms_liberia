@@ -1,18 +1,13 @@
 import { useState, useEffect } from 'react';
 import Layout from '../Layout';
 import { api } from '../api';
-import { getSelectedOrgId } from '../utils/org';
+import { getEffectiveOrgId } from '../utils/org';
 
 export default function AuditLog({ user, onLogout }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [module, setModule] = useState('');
-  const [orgId, setOrgId] = useState(user?.org_id || getSelectedOrgId());
-  const [organizations, setOrganizations] = useState([]);
-
-  useEffect(() => {
-    api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => {});
-  }, []);
+  const orgId = getEffectiveOrgId(user);
 
   useEffect(() => {
     const params = { limit: 100 };
@@ -30,14 +25,6 @@ export default function AuditLog({ user, onLogout }) {
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Audit & compliance</h2>
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          {(user?.role === 'super_admin' || user?.role === 'role_super_admin') && (
-            <select value={orgId} onChange={(e) => setOrgId(e.target.value)} style={{ padding: '0.5rem' }}>
-              <option value="">All orgs</option>
-              {organizations.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
-          )}
           <select value={module} onChange={(e) => setModule(e.target.value)} style={{ padding: '0.5rem' }}>
             <option value="">All modules</option>
             <option value="org_admin">Org admin</option>

@@ -2,22 +2,16 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
 router.use(requireOrgActive);
 
-function orgContext(req, res, next) {
-  const orgId = req.user?.org_id || req.query.org_id || req.body?.org_id;
-  if (!orgId && req.user?.role !== 'super_admin') return res.status(400).json({ ok: false, message: 'org_id required' });
-  req.orgId = orgId;
-  next();
-}
-
-router.get('/', orgContext, async (req, res) => {
+router.get('/', requireOrgContext, async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const { doctor_id, status } = req.query;
     let sql = 'SELECT id, org_id, patient_mrn, doctor_id, case_type, status, notes, created_at, closed_at FROM cases WHERE org_id = $1';
     const params = [orgId];
@@ -31,11 +25,11 @@ router.get('/', orgContext, async (req, res) => {
   }
 });
 
-router.post('/', orgContext, async (req, res) => {
+router.post('/', requireOrgContext, async (req, res) => {
   try {
     const { patient_mrn, doctor_id, case_type, notes } = req.body || {};
     if (!patient_mrn) return res.status(400).json({ ok: false, message: 'patient_mrn required' });
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const id = await ids.getNextCaseId(orgId);
     await db.run(
       'INSERT INTO cases (id, org_id, patient_mrn, doctor_id, case_type, status, notes) VALUES ($1, $2, $3, $4, $5, $6, $7)',

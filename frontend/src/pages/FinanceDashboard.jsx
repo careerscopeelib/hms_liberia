@@ -12,6 +12,7 @@ export default function FinanceDashboard({ user, onLogout }) {
   const [payments, setPayments] = useState([]);
   const [encounters, setEncounters] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [liveStamp, setLiveStamp] = useState('');
 
   useEffect(() => {
     if (!orgId) return setLoading(false);
@@ -21,6 +22,22 @@ export default function FinanceDashboard({ user, onLogout }) {
       api.uhpcms.getPaymentsForOrg(orgId).then((r) => setPayments(r.data || [])).catch(() => []),
       api.uhpcms.getEncounters({ org_id: orgId }).then((r) => setEncounters(r.data || [])).catch(() => []),
     ]).finally(() => setLoading(false));
+  }, [orgId]);
+
+  useEffect(() => {
+    if (!orgId) return;
+    const interval = setInterval(async () => {
+      try {
+        const [i, p] = await Promise.all([
+          api.uhpcms.getInvoicesForOrg(orgId),
+          api.uhpcms.getPaymentsForOrg(orgId),
+        ]);
+        setInvoices(i.data || []);
+        setPayments(p.data || []);
+        setLiveStamp(new Date().toLocaleTimeString());
+      } catch (_) {}
+    }, 15000);
+    return () => clearInterval(interval);
   }, [orgId]);
 
   const totalRevenue = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -36,6 +53,8 @@ export default function FinanceDashboard({ user, onLogout }) {
     acc[m] = (acc[m] || 0) + (Number(p.amount) || 0);
     return acc;
   }, {});
+  const paidInvoices = invoices.filter((i) => i.status === 'paid').length;
+  const partialInvoices = invoices.filter((i) => i.status === 'partial').length;
 
   if (loading) {
     return (
@@ -79,6 +98,17 @@ export default function FinanceDashboard({ user, onLogout }) {
             <span className="stat-card-icon">📋</span>
             <div className="stat-card-label">Total Invoices</div>
             <div className="stat-card-value">{invoices.length}</div>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card-icon">✅</span>
+            <div className="stat-card-label">Paid Invoices</div>
+            <div className="stat-card-value">{paidInvoices}</div>
+            <div className="stat-card-sublabel">Partial: {partialInvoices}</div>
+          </div>
+          <div className="stat-card">
+            <span className="stat-card-icon">🔄</span>
+            <div className="stat-card-label">Realtime sync</div>
+            <div className="stat-card-value" style={{ fontSize: '1rem' }}>{liveStamp || 'Live'}</div>
           </div>
         </div>
 

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
 
-const ORG_TYPES = [{ value: 'hospital', label: 'Hospital' }, { value: 'clinic', label: 'Clinic' }, { value: 'pharmacy', label: 'Pharmacy' }];
+const ORG_TYPES = [{ value: 'hospital', label: 'Hospital' }];
 const DEFAULT_MODULES = ['triage', 'consultation', 'lab', 'inpatient', 'pharmacy', 'clinic', 'billing', 'reporting'];
 const DEFAULT_ADDONS = ['insurance', 'assets', 'hr'];
 
@@ -29,6 +29,7 @@ export default function Governance({ user, onLogout }) {
   const [editUserForm, setEditUserForm] = useState({ email: '', full_name: '', role_id: '', status: 'active', password: '' });
   const [savingUser, setSavingUser] = useState(false);
   const [editUserRoles, setEditUserRoles] = useState([]);
+  const primaryOrganization = useMemo(() => organizations[0] || null, [organizations]);
 
   useEffect(() => {
     api.uhpcms.getOrganizations()
@@ -60,6 +61,10 @@ export default function Governance({ user, onLogout }) {
   const handleCreate = async (e) => {
     e.preventDefault();
     setError('');
+    if (organizations.length > 0) {
+      setError('Single hospital mode is enabled. Additional organizations are disabled.');
+      return;
+    }
     setCreating(true);
     try {
       await api.uhpcms.createOrganization({ name, type, subscription_plan: 'standard' });
@@ -227,14 +232,14 @@ export default function Governance({ user, onLogout }) {
   return (
     <Layout user={user} onLogout={onLogout}>
       <div className="page-enter page-enter-active">
-        <h2 className="section-title">System Governance — Organizations</h2>
+        <h2 className="section-title">System Governance — Single Hospital</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
-          Create hospitals, clinics, and pharmacies. Then assign an org admin in Org setup.
+          Single-hospital mode is active. Manage modules, add-ons, status, and users for the main hospital.
         </p>
 
-        <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
+        {!primaryOrganization && <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
           <div className="card-body">
-            <h3 style={{ marginTop: 0 }}>Create Organization</h3>
+            <h3 style={{ marginTop: 0 }}>Create Hospital</h3>
             <form onSubmit={handleCreate} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
               <label style={{ flex: '1 1 200px' }}>
                 Name
@@ -252,9 +257,9 @@ export default function Governance({ user, onLogout }) {
             </form>
             {error && <div className="login-error" style={{ marginTop: '1rem' }}>{error}</div>}
           </div>
-        </div>
+        </div>}
 
-        <h3 className="section-title">Organizations ({organizations.length})</h3>
+        <h3 className="section-title">Hospital ({organizations.length})</h3>
         {loading ? <div className="loading-state">Loading…</div> : (
           <div className="card">
             <div className="table-wrap">
@@ -269,7 +274,7 @@ export default function Governance({ user, onLogout }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {organizations.map((org) => (
+                  {organizations.slice(0, 1).map((org) => (
                     <tr key={org.id}>
                       <td><strong>{org.name}</strong></td>
                       <td><span className="badge">{org.type}</span></td>
@@ -280,7 +285,7 @@ export default function Governance({ user, onLogout }) {
                           {manageOrgId === org.id ? 'Close' : 'Manage'}
                         </button>
                         <button type="button" className="btn" style={{ padding: '0.35rem 0.75rem', marginRight: '0.35rem' }} onClick={() => openEditOrg(org)}>Edit</button>
-                        <button type="button" className="btn" style={{ padding: '0.35rem 0.75rem', color: 'var(--color-danger, #c00)' }} onClick={() => setDeleteOrgId(org.id)}>Delete</button>
+                        <button type="button" className="btn" style={{ padding: '0.35rem 0.75rem', color: 'var(--color-danger, #c00)' }} disabled title="Disabled in single-hospital mode">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -295,7 +300,7 @@ export default function Governance({ user, onLogout }) {
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Manage: {organizations.find((o) => o.id === manageOrgId)?.name}</h3>
               <p style={{ marginBottom: '1rem' }}>
-                <button type="button" className="btn-primary" onClick={() => navigate(`/org-admin?org_id=${manageOrgId}`)}>Add / assign Org Admin</button>
+                <button type="button" className="btn-primary" onClick={() => navigate('/org-admin')}>Add / assign Org Admin</button>
                 <span style={{ marginLeft: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>— Create a user with role &quot;Org Admin&quot; for this organization.</span>
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
@@ -349,7 +354,7 @@ export default function Governance({ user, onLogout }) {
           </div>
         )}
 
-        {deleteOrgId && (
+        {deleteOrgId && false && (
           <div className="card card-interactive" style={{ marginTop: '1.5rem', borderColor: 'var(--color-danger, #c00)' }}>
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Delete organization?</h3>
@@ -363,11 +368,7 @@ export default function Governance({ user, onLogout }) {
         <h3 className="section-title" style={{ marginTop: '2rem' }}>System users</h3>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>View, edit, or deactivate users across organizations.</p>
         <div style={{ marginBottom: '1rem' }}>
-          <label>Filter by organization </label>
-          <select value={governanceUsersOrgFilter} onChange={(e) => setGovernanceUsersOrgFilter(e.target.value)} style={{ padding: '0.5rem', marginLeft: '0.5rem' }}>
-            <option value="">All</option>
-            {organizations.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
+          <label>Hospital users</label>
           <button type="button" className="btn" style={{ marginLeft: '0.5rem' }} onClick={loadGovernanceUsers}>Refresh</button>
         </div>
         <div className="card">

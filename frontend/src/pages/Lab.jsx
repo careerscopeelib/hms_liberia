@@ -26,6 +26,7 @@ export default function Lab({ user, onLogout }) {
   const [statusUpdateVal, setStatusUpdateVal] = useState('');
   const [docsForOrderId, setDocsForOrderId] = useState(null);
   const [orderDocuments, setOrderDocuments] = useState([]);
+  const [liveStamp, setLiveStamp] = useState('');
 
   const orgId = getEffectiveOrgId(user);
 
@@ -41,6 +42,18 @@ export default function Lab({ user, onLogout }) {
   };
 
   useEffect(() => { load(); }, [orgId, filterStatus, filterEncounter]);
+
+  useEffect(() => {
+    if (!orgId) return;
+    const interval = setInterval(() => {
+      load();
+      setLiveStamp(new Date().toLocaleTimeString());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [orgId, filterStatus, filterEncounter]);
+
+  const pendingCount = orders.filter((o) => ['pending', 'sample_collected', 'processing'].includes(o.status)).length;
+  const readyCount = orders.filter((o) => o.status === 'result_ready').length;
 
   useEffect(() => {
     if (!docsForOrderId || !orgId) return;
@@ -89,6 +102,20 @@ export default function Lab({ user, onLogout }) {
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Lab / Investigations</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Add investigation reports, manage orders, update status, submit results.</p>
+        <div className="stats-grid" style={{ marginBottom: '1rem' }}>
+          <div className="stat-card stat-card--orange">
+            <div className="stat-card-label">Pending / Processing</div>
+            <div className="stat-card-value">{pendingCount}</div>
+          </div>
+          <div className="stat-card stat-card--green">
+            <div className="stat-card-label">Results Ready</div>
+            <div className="stat-card-value">{readyCount}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-card-label">Realtime sync</div>
+            <div className="stat-card-value" style={{ fontSize: '1rem' }}>{liveStamp || 'Live'}</div>
+          </div>
+        </div>
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
         <div id="add-report" className="card card-interactive" style={{ marginBottom: '1.5rem' }}>

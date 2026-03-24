@@ -92,6 +92,28 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
     } catch (e) { setError(e.message); }
   };
 
+  const handlePrint = () => window.print();
+  const handleExportSummary = () => {
+    const lines = [
+      `Patient: ${patient.full_name || patient.mrn}`,
+      `MRN: ${patient.mrn}`,
+      `PID: ${patient.pid || ''}`,
+      `DOB: ${patient.date_of_birth || ''}`,
+      `Gender: ${patient.gender || ''}`,
+      `Phone: ${patient.phone || ''}`,
+      '',
+      'Encounters:',
+      ...(encounters || []).map((enc) => `${enc.id} | ${enc.status} | ${enc.registered_at || ''}`),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patient-${patient.mrn}-summary.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading || !data) {
     return (
       <Layout user={user} onLogout={onLogout}>
@@ -115,6 +137,8 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
             <button type="button" className="btn" onClick={() => setTab('documents')}>Documents</button>
             <button type="button" className="btn" onClick={() => setTransferShow('to_hospital')}>Transfer to hospital</button>
             <button type="button" className="btn" onClick={() => setTransferShow('from_hospital')}>Transfer from hospital</button>
+            <button type="button" className="btn" onClick={handlePrint}>Print</button>
+            <button type="button" className="btn" onClick={handleExportSummary}>Export</button>
             <button type="button" className="btn" style={{ color: 'var(--color-error, #c00)' }} onClick={handleDelete}>Delete</button>
             <button type="button" className="btn" onClick={() => navigate('/patients')}>Back to list</button>
           </div>
@@ -123,7 +147,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
 
         {tab === 'overview' && (
           <>
-            <div className="card" style={{ marginBottom: '1.5rem' }}>
+            <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
               <h3 style={{ marginTop: 0 }}>Demographics</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
                 <div><strong>MRN</strong><br />{patient.mrn}</div>
@@ -136,7 +160,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
               </div>
             </div>
 
-            <div className="card" style={{ marginBottom: '1.5rem' }}>
+            <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
               <h3 style={{ marginTop: 0 }}>Medical records & encounters</h3>
               {encounters.length === 0 ? (
                 <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>No encounters yet.</p>
@@ -179,7 +203,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
               )}
             </div>
 
-            <div className="card" style={{ marginBottom: '1.5rem' }}>
+            <div className="card card-interactive" style={{ marginBottom: '1.5rem' }}>
               <h3 style={{ marginTop: 0 }}>Transfer history</h3>
               {transfer_history?.length === 0 ? (
                 <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>No transfers.</p>
@@ -208,7 +232,7 @@ export default function PatientDetail({ user, onLogout, initialTab = 'overview' 
         )}
 
         {tab === 'edit' && editForm && (
-          <div className="card">
+          <div className="card card-interactive">
             <h3 style={{ marginTop: 0 }}>Edit patient</h3>
             <form onSubmit={handleEditSubmit} style={{ display: 'grid', gap: '0.75rem', maxWidth: 400 }}>
               <label>Full name <input type="text" value={editForm.full_name || ''} onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))} style={{ width: '100%', padding: '0.5rem' }} /></label>

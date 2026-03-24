@@ -69,8 +69,8 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1 className="login-title">U-HPCMS</h1>
-        <p className="login-subtitle">Unified Hospital, Clinic & Pharmacy Management System</p>
+        <h1 className="login-title">Hospital Management System</h1>
+        <p className="login-subtitle">Single Hospital Management System</p>
 
         <div className="currency-switcher" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
           <button type="button" className={`btn-currency ${mode === 'legacy' ? 'active' : ''}`} onClick={() => setMode('legacy')}>

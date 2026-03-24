@@ -2,22 +2,16 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
 router.use(requireOrgActive);
 
-function orgContext(req, res, next) {
-  const orgId = req.user?.org_id || req.query.org_id || req.body?.org_id;
-  if (!orgId && req.user?.role !== 'super_admin') return res.status(400).json({ ok: false, message: 'org_id required' });
-  req.orgId = orgId;
-  next();
-}
-
-router.get('/rooms', orgContext, async (req, res) => {
+router.get('/rooms', requireOrgContext, async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const userId = req.user?.id;
     let sql = `SELECT r.id, r.name, r.created_at,
       (SELECT COUNT(*) FROM chat_messages m WHERE m.room_id = r.id) as message_count
@@ -34,10 +28,10 @@ router.get('/rooms', orgContext, async (req, res) => {
   }
 });
 
-router.post('/rooms', orgContext, async (req, res) => {
+router.post('/rooms', requireOrgContext, async (req, res) => {
   try {
     const { name } = req.body || {};
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     const id = await ids.getNextPrefixedId('chat_rooms', 'id', 'ROOM-', 'org_id', orgId);
     await db.run('INSERT INTO chat_rooms (id, org_id, name) VALUES ($1, $2, $3)', [id, orgId, name || 'General']);
     await db.run('INSERT INTO chat_room_participants (room_id, user_id) VALUES ($1, $2)', [id, req.user?.id]);

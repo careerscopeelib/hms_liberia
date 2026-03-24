@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
@@ -11,9 +12,9 @@ router.use(requireAuth);
 router.use(requireOrgActive);
 router.use(requireModule(['hospital', 'clinic']));
 
-router.get('/search', audit('patient', 'search'), async (req, res) => {
+router.get('/search', requireOrgContext, audit('patient', 'search'), async (req, res) => {
   try {
-    const org_id = req.user?.org_id || req.query.org_id;
+    const org_id = req.orgId;
     const { mrn, pid } = req.query;
     if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
     let row = null;
@@ -26,10 +27,9 @@ router.get('/search', audit('patient', 'search'), async (req, res) => {
   }
 });
 
-router.get('/next-mrn', async (req, res) => {
+router.get('/next-mrn', requireOrgContext, async (req, res) => {
   try {
-    const org_id = req.user?.org_id || req.query.org_id;
-    if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
+    const org_id = req.orgId;
     const mrn = await ids.getNextMrn(org_id);
     res.json({ ok: true, mrn });
   } catch (e) {
@@ -37,9 +37,9 @@ router.get('/next-mrn', async (req, res) => {
   }
 });
 
-router.post('/register', audit('patient', 'register'), async (req, res) => {
+router.post('/register', requireOrgContext, audit('patient', 'register'), async (req, res) => {
   try {
-    const org_id = req.user?.org_id || req.body.org_id;
+    const org_id = req.orgId;
     const { mrn, pid, full_name, date_of_birth, gender, phone, address } = req.body || {};
     if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
     const useMrn = mrn || (await ids.getNextMrn(org_id));
@@ -55,10 +55,9 @@ router.post('/register', audit('patient', 'register'), async (req, res) => {
   }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', requireOrgContext, async (req, res) => {
   try {
-    const org_id = req.user?.org_id || req.query.org_id;
-    if (!org_id) return res.status(400).json({ ok: false, message: 'org_id required' });
+    const org_id = req.orgId;
     const rows = await db.query(
       'SELECT id, mrn, org_id, pid, full_name, date_of_birth, gender, phone, address, created_at FROM patient_org WHERE org_id = $1 ORDER BY created_at DESC',
       [org_id]
@@ -70,11 +69,11 @@ router.get('/', async (req, res) => {
 });
 
 // GET /by-mrn?org_id=&mrn= - full record by org + mrn
-router.get('/by-mrn', audit('patient', 'view'), async (req, res) => {
+router.get('/by-mrn', requireOrgContext, audit('patient', 'view'), async (req, res) => {
   try {
-    const org_id = req.user?.org_id || req.query.org_id;
+    const org_id = req.orgId;
     const { mrn } = req.query;
-    if (!org_id || !mrn) return res.status(400).json({ ok: false, message: 'org_id and mrn required' });
+    if (!mrn) return res.status(400).json({ ok: false, message: 'mrn required' });
     const patient = await db.get('SELECT * FROM patient_org WHERE org_id = $1 AND mrn = $2', [org_id, mrn]);
     if (!patient) return res.status(404).json({ ok: false, message: 'Patient not found' });
     const fullRecord = await buildFullRecord(patient.org_id, patient.mrn, patient);

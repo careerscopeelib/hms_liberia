@@ -1,8 +1,31 @@
 const db = require('../db');
 
+async function resolveSingleHospitalOrgId() {
+  const row = await db.get("SELECT id FROM organizations WHERE type = $1 ORDER BY created_at ASC LIMIT 1", ['hospital']);
+  if (row?.id) return row.id;
+  const fallback = await db.get('SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1');
+  return fallback?.id || null;
+}
+
+async function ensureOrgContext(req) {
+  if (!req.user) return null;
+  if (req.user.org_id) {
+    req.orgId = req.user.org_id;
+    return req.orgId;
+  }
+  const orgId = await resolveSingleHospitalOrgId();
+  if (orgId) {
+    req.user.org_id = orgId;
+    req.orgId = orgId;
+    return orgId;
+  }
+  req.orgId = null;
+  return null;
+}
+
 async function requireOrgActive(req, res, next) {
   if (!req.user) return next();
-  const orgId = req.user.org_id;
+  const orgId = await ensureOrgContext(req);
   if (!orgId) return next();
   try {
     const row = await db.get('SELECT status FROM organizations WHERE id = $1', [orgId]);
@@ -13,4 +36,4 @@ async function requireOrgActive(req, res, next) {
   next();
 }
 
-module.exports = { requireOrgActive };
+module.exports = { requireOrgActive, ensureOrgContext };

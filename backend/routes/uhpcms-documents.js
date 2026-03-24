@@ -2,23 +2,17 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
 router.use(requireAuth);
 router.use(requireOrgActive);
 
-function orgContext(req, res, next) {
-  const orgId = req.user?.org_id || req.query.org_id || req.body?.org_id;
-  if (!orgId && req.user?.role !== 'super_admin') return res.status(400).json({ ok: false, message: 'org_id required' });
-  req.orgId = orgId;
-  next();
-}
-
 // GET list: ?org_id= & patient_mrn=  OR  ?org_id= & entity_type= & entity_id=
-router.get('/', orgContext, async (req, res) => {
+router.get('/', requireOrgContext, async (req, res) => {
   try {
-    const orgId = req.orgId || req.query.org_id;
+    const orgId = req.orgId;
     const { patient_mrn, entity_type, entity_id } = req.query;
     if (entity_type && entity_id) {
       let rows = [];
@@ -89,10 +83,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST upload (body: org_id, patient_mrn, name, content_type, content base64) OR (entity_type, entity_id, name, content_type, content)
-router.post('/', orgContext, async (req, res) => {
+router.post('/', requireOrgContext, async (req, res) => {
   try {
     const { patient_mrn, entity_type, entity_id, name, content_type, content } = req.body || {};
-    const orgId = req.orgId || req.body.org_id;
+    const orgId = req.orgId;
     if (entity_type && entity_id && name) {
       const id = await ids.getNextEntityDocumentId();
       try {

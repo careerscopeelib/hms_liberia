@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requireModule } = require('../middleware/requireModule');
 const { audit } = require('../middleware/audit');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 const ids = require('../lib/ids');
 
 const router = express.Router();
@@ -11,9 +12,9 @@ router.use(requireAuth);
 router.use(requireOrgActive);
 router.use(requireModule('pharmacy'));
 
-router.get('/drugs', async (req, res) => {
+router.get('/drugs', requireOrgContext, async (req, res) => {
   try {
-    const org_id = req.user?.org_id || req.query.org_id;
+    const org_id = req.orgId;
     const rows = await db.query('SELECT id, org_id, name, code, unit FROM drugs WHERE org_id = $1 ORDER BY name', [org_id]);
     res.json({ ok: true, data: rows });
   } catch (e) {
@@ -21,11 +22,11 @@ router.get('/drugs', async (req, res) => {
   }
 });
 
-router.post('/drugs', audit('pharmacy', 'create_drug'), async (req, res) => {
+router.post('/drugs', requireOrgContext, audit('pharmacy', 'create_drug'), async (req, res) => {
   try {
     const { name, code, unit } = req.body || {};
     if (!name) return res.status(400).json({ ok: false, message: 'name required' });
-    const org_id = req.user?.org_id || req.body.org_id;
+    const org_id = req.orgId;
     const id = await ids.getNextPrefixedId('drugs', 'id', 'DRUG-', 'org_id', org_id);
     await db.run('INSERT INTO drugs (id, org_id, name, code, unit) VALUES ($1, $2, $3, $4, $5)', [id, org_id, name, code || null, unit || 'unit']);
     res.status(201).json({ ok: true, id });

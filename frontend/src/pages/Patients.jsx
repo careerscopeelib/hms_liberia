@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../Layout';
 import { api } from '../api';
-import { getEffectiveOrgId, getSelectedOrgId, setSelectedOrgId } from '../utils/org';
+import { getEffectiveOrgId } from '../utils/org';
 
 export default function Patients({ user, onLogout }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryQ = searchParams.get('q') || '';
-  const [organizations, setOrganizations] = useState([]);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -23,10 +22,6 @@ export default function Patients({ user, onLogout }) {
           (p.pid && String(p.pid).toLowerCase().includes(q));
       })
     : patients;
-
-  useEffect(() => {
-    api.uhpcms.getOrganizations().then((r) => setOrganizations(r.data || [])).catch(() => []);
-  }, [user]);
 
   useEffect(() => {
     if (!currentOrgId) { setLoading(false); return; }
@@ -65,17 +60,7 @@ export default function Patients({ user, onLogout }) {
             Search: &quot;{queryQ}&quot; — {filteredPatients.length} result(s)
           </p>
         )}
-        {(user?.role === 'super_admin' || user?.role === 'role_super_admin') && !user?.org_id && (
-          <select
-            value={getSelectedOrgId()}
-            onChange={(e) => { const id = e.target.value; setSelectedOrgId(id); }}
-            style={{ padding: '0.5rem', marginBottom: '1rem' }}
-          >
-            <option value="">Select organization</option>
-            {organizations.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        )}
-        {!currentOrgId && <p className="login-error">Select an organization.</p>}
+        {!currentOrgId && <p className="login-error">Hospital is not configured yet.</p>}
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         {currentOrgId && (
           <p style={{ marginBottom: '1rem' }}>
@@ -86,7 +71,7 @@ export default function Patients({ user, onLogout }) {
         {loading ? (
           <div className="loading-state">Loading…</div>
         ) : (
-          <div className="card">
+          <div className="card card-interactive">
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -110,9 +95,11 @@ export default function Patients({ user, onLogout }) {
                       <td>{p.phone || '—'}</td>
                       <td>{p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
                       <td>
-                        <button type="button" className="btn btn-primary" style={{ marginRight: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} onClick={() => navigate(`/patients/${p.id}`)}>View</button>
-                        <button type="button" className="btn" style={{ marginRight: '0.25rem', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }} onClick={() => navigate(`/patients/${p.id}/edit`)}>Edit</button>
-                        <button type="button" className="btn" style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', color: 'var(--color-error, #c00)' }} onClick={() => handleDelete(p.id, p.mrn)}>Delete</button>
+                        <div className="table-actions">
+                          <button type="button" className="btn btn-primary" onClick={() => navigate(`/patients/${p.id}`)}>View</button>
+                          <button type="button" className="btn" onClick={() => navigate(`/patients/${p.id}/edit`)}>Edit</button>
+                          <button type="button" className="btn btn--danger" onClick={() => handleDelete(p.id, p.mrn)}>Delete</button>
+                        </div>
                       </td>
                     </tr>
                   ))}

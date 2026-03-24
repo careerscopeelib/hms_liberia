@@ -3,6 +3,7 @@ const db = require('../db');
 const config = require('../config');
 const { requireAuth } = require('../middleware/auth');
 const { requireOrgActive } = require('../middleware/orgCheck');
+const { requireOrgContext } = require('../middleware/requireOrgContext');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -11,9 +12,9 @@ router.use(requireOrgActive);
 /** GET /api/uhpcms/search?q=...&org_id=...
  * Returns { patients, users, notices } for global header search.
  */
-router.get('/', async (req, res) => {
+router.get('/', requireOrgContext, async (req, res) => {
   try {
-    const orgId = req.user?.org_id || req.query.org_id;
+    const orgId = req.orgId;
     if (!orgId) return res.json({ ok: true, data: { patients: [], users: [], notices: [] } });
 
     const q = (req.query.q || '').trim();

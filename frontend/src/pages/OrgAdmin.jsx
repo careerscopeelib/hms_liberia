@@ -204,13 +204,7 @@ export default function OrgAdmin({ user, onLogout }) {
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
           Departments, wards, pharmacy stores, services (billing codes), and users.
         </p>
-        {(user?.role === 'super_admin' || user?.role === 'role_super_admin') && !user?.org_id && (
-          <select value={orgId} onChange={(e) => { const id = e.target.value; setOrgId(id); setSelectedOrgId(id); }} style={{ padding: '0.5rem', marginBottom: '1rem' }}>
-            <option value="">Select organization</option>
-            {organizations.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        )}
-        {!currentOrgId && <p className="login-error">Select an organization.</p>}
+        {!currentOrgId && <p className="login-error">No hospital configured yet. Create hospital in Governance first.</p>}
         <div className="flow-step" style={{ flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
           {TABS.map((t) => (
             <button key={t.id} type="button" className={tab === t.id ? 'active' : ''} onClick={() => { setTab(t.id); setSuccessMsg(''); setCreatedUserEmail(''); }}>{t.icon} {t.label}</button>
