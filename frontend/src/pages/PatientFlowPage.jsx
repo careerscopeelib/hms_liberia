@@ -38,16 +38,20 @@ export default function PatientFlowPage({ user, onLogout }) {
   const [rxItems, setRxItems] = useState([{ drug_id: '', quantity: 1, dosage: '', duration: '' }]);
 
   const currentOrgId = getEffectiveOrgId(user);
+  const enabledModules = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
+  const canUsePatientFlow = enabledModules.includes('hospital') || enabledModules.includes('clinic');
+  const canUsePharmacy = enabledModules.includes('pharmacy');
 
   const loadDataForOrg = (orgId) => {
     if (!orgId) return;
+    if (!canUsePatientFlow) return;
     setLoading(true);
     Promise.all([
       api.uhpcms.getPatients({ org_id: orgId }).then((r) => r.data || []).catch(() => []),
       api.uhpcms.getEncounters({ org_id: orgId }).then((r) => r.data || []).catch(() => []),
       api.uhpcms.getDepartments(orgId).then((r) => r.data || []).catch(() => []),
       api.uhpcms.getNextMrn(orgId).then((r) => r.mrn).catch(() => 'MRN001'),
-      api.uhpcms.getDrugs(orgId).then((r) => r.data || []).catch(() => []),
+      canUsePharmacy ? api.uhpcms.getDrugs(orgId).then((r) => r.data || []).catch(() => []) : Promise.resolve([]),
     ]).then(([p, e, d, m, dr]) => {
       setPatients(p);
       setEncounters(e);
@@ -199,6 +203,7 @@ export default function PatientFlowPage({ user, onLogout }) {
       <div className="page-enter page-enter-active">
         <h2 className="section-title">Patient flow</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Registration → Triage → Consultation → Lab → Pharmacy → Billing</p>
+        {!canUsePatientFlow && <p className="login-error" style={{ marginBottom: '1rem' }}>Patient flow module is not enabled for your account/organization.</p>}
         <div className="flow-step" style={{ flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem', display: 'flex' }}>
           {STEPS.map((s) => (
             <button key={s.id} type="button" className={`btn ${step === s.id ? 'btn-primary' : ''}`} style={step === s.id ? {} : { background: 'var(--color-bg)', color: 'var(--color-text)' }} onClick={() => { setStep(s.id); setError(''); setSuccessMsg(''); }}>{s.label}</button>
@@ -207,7 +212,7 @@ export default function PatientFlowPage({ user, onLogout }) {
         {!currentOrgId && <p className="login-error" style={{ marginBottom: '1rem' }}>Hospital is not configured yet.</p>}
         {error && <div className="login-error" style={{ marginBottom: '1rem' }}>{error}</div>}
         {successMsg && <div className="login-success" style={{ marginBottom: '1rem' }}>{successMsg}</div>}
-        {step === 'register' && (
+        {canUsePatientFlow && step === 'register' && (
           <div className="card card-interactive">
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Patient registration</h3>
@@ -246,7 +251,7 @@ export default function PatientFlowPage({ user, onLogout }) {
             </div>
           </div>
         )}
-        {step === 'triage' && (
+        {canUsePatientFlow && step === 'triage' && (
           <div className="card card-interactive">
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Triage</h3>
@@ -263,7 +268,7 @@ export default function PatientFlowPage({ user, onLogout }) {
             </div>
           </div>
         )}
-        {step === 'consultation' && (
+        {canUsePatientFlow && step === 'consultation' && (
           <div className="card card-interactive">
             <div className="card-body">
               <h3 style={{ marginTop: 0 }}>Consultation (SOAP)</h3>
@@ -311,21 +316,21 @@ export default function PatientFlowPage({ user, onLogout }) {
             </div>
           </div>
         )}
-        {step === 'lab' && (
+        {canUsePatientFlow && step === 'lab' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Lab</h3>
             <p>Order tests and submit results in the Lab workflow.</p>
             {encounterId && <p><button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => navigate(`/lab?encounter_id=${encounterId}`)}>Open Lab for encounter {encounterId}</button></p>}
           </div>
         )}
-        {step === 'pharmacy' && (
+        {canUsePatientFlow && step === 'pharmacy' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Pharmacy</h3>
             <p>Create prescriptions in Consultation; dispense from the Pharmacy page.</p>
             {encounterId && <p><button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => navigate('/pharmacy')}>Open Pharmacy</button></p>}
           </div>
         )}
-        {step === 'billing' && (
+        {canUsePatientFlow && step === 'billing' && (
           <div className="card card-body">
             <h3 style={{ marginTop: 0 }}>Billing</h3>
             <p>Add charges, create invoices, and record payments (USD only).</p>

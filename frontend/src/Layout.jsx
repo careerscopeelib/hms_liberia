@@ -230,6 +230,11 @@ function filterItems(items, userRole, enabledModules) {
   });
 }
 
+function hasModule(user, moduleName) {
+  const mods = Array.isArray(user?.enabled_modules) ? user.enabled_modules : [];
+  return mods.includes(moduleName);
+}
+
 export default function Layout({ user, onLogout, children }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -271,6 +276,7 @@ export default function Layout({ user, onLogout, children }) {
   useEffect(() => {
     const role = normalizeRole(user?.role);
     if (!user || !['lab', 'pharmacist', 'doctor', 'accountant', 'administrator', 'org_admin', 'super_admin', 'role_super_admin'].includes(role)) return;
+    if (!hasModule(user, 'reporting')) return;
     const pollOps = () => {
       const orgId = getEffectiveOrgId(user);
       api.uhpcms.getReportingDashboard(orgId || selectedOrgId || undefined)
@@ -292,11 +298,14 @@ export default function Layout({ user, onLogout, children }) {
     if (!user) return;
     const role = normalizeRole(user?.role);
     if (!['lab', 'pharmacist', 'doctor', 'administrator', 'org_admin', 'super_admin', 'role_super_admin'].includes(role)) return;
+    const allowLab = hasModule(user, 'lab');
+    const allowPharmacy = hasModule(user, 'pharmacy');
+    if (!allowLab && !allowPharmacy) return;
     const pollNotifications = async () => {
       try {
         const [labRes, rxRes] = await Promise.all([
-          api.uhpcms.getLabOrders({ status: 'pending' }).catch(() => ({ data: [] })),
-          api.uhpcms.getPrescriptions({ status: 'pending' }).catch(() => ({ data: [] })),
+          allowLab ? api.uhpcms.getLabOrders({ status: 'pending' }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+          allowPharmacy ? api.uhpcms.getPrescriptions({ status: 'pending' }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         ]);
         const labItems = (labRes.data || []).slice(0, 4).map((o) => ({
           id: `lab-${o.id}`,

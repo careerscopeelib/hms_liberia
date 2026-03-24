@@ -91,9 +91,9 @@ export default function App() {
         <Route path="/dashboard" element={user ? (user.role && String(user.role).toLowerCase().includes('accountant') ? <Navigate to="/finance-dashboard" replace /> : <Dashboard user={user} onLogout={handleLogout} />) : <Navigate to="/login" replace />} />
         <Route path="/governance" element={user ? (hasRole(user, ['super_admin']) ? <Governance user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" replace />) : <Navigate to="/login" replace />} />
         <Route path="/billing" element={user ? <Billing user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
-        <Route path="/workflow" element={user ? <PatientFlow user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
-        <Route path="/patient-flow" element={user ? <PatientFlow user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
-        <Route path="/register-patient" element={user ? <PatientFlow user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
+        <Route path="/workflow" element={user ? (hasRole(user, ['doctor', 'receptionist', 'representative', 'admin', 'super_admin']) ? <PatientFlow user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" replace />) : <Navigate to="/login" replace />} />
+        <Route path="/patient-flow" element={user ? (hasRole(user, ['doctor', 'receptionist', 'representative', 'admin', 'super_admin']) ? <PatientFlow user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" replace />) : <Navigate to="/login" replace />} />
+        <Route path="/register-patient" element={user ? (hasRole(user, ['doctor', 'receptionist', 'representative', 'admin', 'super_admin']) ? <PatientFlow user={user} onLogout={handleLogout} /> : <Navigate to="/dashboard" replace />) : <Navigate to="/login" replace />} />
         <Route path="/patients" element={user ? <Patients user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
         <Route path="/patients/:id" element={user ? <PatientDetail user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
         <Route path="/patients/:id/edit" element={user ? <PatientDetail user={user} onLogout={handleLogout} initialTab="edit" /> : <Navigate to="/login" replace />} />
